@@ -117,7 +117,7 @@ const submit = () => {
             <div class="px-[40px] py-4 sm:col-span-6 text-black">
 
               <div class="logo-icon mt-[55px] justify-center flex">
-                <span class="text-black font-bold text-lg">IgboConnect</span>
+                <span class="text-black font-bold text-lg">WeConnect</span>
               </div>
               <h4 class="text-black text-3xl font-extrabold my-2 text-center mt-4">Create Account</h4>
               <p class="text-gray-400 text-center text-sm">Please enter your details to register</p>

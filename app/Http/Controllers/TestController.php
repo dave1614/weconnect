@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
 
 // use \Response;
@@ -29,8 +30,11 @@ class TestController extends Controller
     }
 
     public function socialMediaHomePage(Request $request){
+        $props = [];
+        $props['posts'] = json_decode(File::get(public_path('posts.json')));
+        // return $props;
 
-        return Inertia::render('Tests/SocialHome');
+        return Inertia::render('Tests/SocialHome', $props);
     }
 
     public function testLogin(Request $request): JsonResponse{

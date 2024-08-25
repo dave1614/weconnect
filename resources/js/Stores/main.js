@@ -27,10 +27,29 @@ export const useMainStore = defineStore('main', () => {
   const is_admin = ref(false)
   const notiDismissed = ref(true)
   const email_changed = ref(false)
+  const sidebar_open = ref(false)
 
+
+//   function convertKbTMb(val) {
+//     // return (val / 1024).toFixed(2);
+//   };
+
+  function toggleSidebar (){
+    sidebar_open.value = !sidebar_open.value;
+  }
+
+  function convertbytesToMbOrKb(bytes) {
+    if (bytes < 1024) {
+      return `${bytes} B`
+    }else if (bytes >= 1024 && bytes < 1048576) {
+      return `${(bytes / 1024).toFixed(2)} KB`
+    } else if (bytes >= 1048576) {
+      return `${(bytes / 1048576).toFixed(2)} MB`
+    }
+  }
 
   function truncateStr(str, num) {
-    return str.length > num ?  {edited: true, text: str.slice(0, num) + '...'}  : {edited: false, text: str};
+    return str.length > num ?  str.slice(0, num) + '...'  : str;
   }
 
   function replaceUnderscoreWithSpace(str){
@@ -116,6 +135,7 @@ export const useMainStore = defineStore('main', () => {
     is_admin,
     notiDismissed,
     email_changed,
+    sidebar_open,
     setUser,
     fetchSampleClients,
     fetchSampleHistory,
@@ -127,5 +147,7 @@ export const useMainStore = defineStore('main', () => {
     isNumeric,
     addCommas,
     truncateStr,
+    convertbytesToMbOrKb,
+    toggleSidebar
   }
 })
