@@ -1,6 +1,10 @@
 <?php
 
 use App\Models\Country;
+use App\Models\InecLga;
+use App\Models\InecState;
+use App\Models\InecWard;
+use App\Models\State;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -15,17 +19,24 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->boolean('is_admin')->default(false);
+            $table->foreignId('community_leader')->nullable()->constrained(
+                table: 'community_leader_roles',
+            )->onDelete('cascade');
+
+            $table->timestamp('community_leader_date')->nullable();
+            $table->boolean('community_leader_pending')->default(0);
+
             $table->string('user_name');
+            $table->string('slug');
             $table->decimal("earnings_wallet", 20, 2)->default(0.00);
             $table->decimal("total_upteam_earnings", 20, 2)->default(0.00);
             $table->decimal("total_earnings", 20, 2)->default(0.00);
             $table->decimal("total_admin_earnings", 20, 2)->default(0.00);
             $table->decimal("total_withdrawan", 20, 2)->default(0.00);
             $table->string('name');
-            // $table->string('user_name');
-            // $table->string('slug');
             $table->string('email')->nullable();
             $table->timestamp('email_verified_at')->nullable();
+            $table->boolean('email_enabled')->default(true);
             $table->timestamp('last_activity')->nullable();
 
             $table->text('providus_account_number')->nullable();
@@ -45,7 +56,17 @@ return new class extends Migration
             $table->string('cover_photo')->nullable();
             $table->text('bio')->nullable();
             $table->foreignIdFor(Country::class)->constrained()->onDelete('cascade')->nullable();
-            // $table->foreignIdFor(Region::class)->constrained()->onDelete('cascade')->nullable();
+            $table->foreignId('state_id')->nullable()->constrained(
+                table: 'inec_states',
+            )->onDelete('cascade');
+            $table->foreignId('lga_id')->nullable()->constrained(
+                table: 'inec_lgas',
+            )->onDelete('cascade');
+            $table->foreignId('ward_id')->nullable()->constrained(
+                table: 'inec_wards',
+            )->onDelete('cascade');
+
+            // $table->foreignIdFor(State::class)->constrained()->onDelete('cascade')->nullable();
             $table->text('address')->nullable();
             $table->boolean('register')->default(false);
             $table->boolean('created')->default(false);

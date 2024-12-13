@@ -3,9 +3,14 @@ import { useForm, usePage, Head, Link, router } from '@inertiajs/vue3'
 import { computed, ref, reactive, onMounted, onUnmounted  } from 'vue'
 import { mdiAccount, mdiEmail, mdiFormTextboxPassword } from '@mdi/js'
 import LayoutSocial from '@/Layouts/LayoutSocial.vue'
+
 import FormLoaderDark from '@/Loaders/form_loader_dark.gif'
 import FormLoaderLight from '@/Loaders/form_loader_light.gif'
 import FlashMessages from '@/Components/FlashMessages.vue'
+import Post from '@/Components/Social/Post.vue'
+import PostPopup from '@/Components/Social/PostPopup.vue'
+
+
 import { useDarkModeStore } from '@/Stores/darkMode.js'
 import { useMainStore } from '@/Stores/main.js'
 
@@ -16,7 +21,11 @@ const props = defineProps({
   posts: {
     type: Array,
     default: []
+  },
+  user: {
+    type: Object,
   }
+
 });
 
 console.log(props.posts)
@@ -30,7 +39,7 @@ const mainStore = useMainStore()
 const page = usePage()
 
 
-const show_select_emoji = ref(false);
+
 
 
 let files = []
@@ -169,16 +178,9 @@ const openBiggerPost = (post_index, media_index) => {
   console.log(open_media_index.value)
 }
 
-const closeBigPostModal = () => {
-  open_post_index.value = false;
-  open_media_index.value = false;
-}
 
-const onSelectEmoji = (emoji) => {
-  console.log(emoji)
 
-  make_comment_form.comment = make_comment_form.comment + emoji.i;
-}
+
 
 const makeCommentAction = (index) => {
   openBiggerPost(index, 0);
@@ -229,7 +231,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                   <div>
                     <form>
                       <div v-show="!create_post_input_fcsd" class="grid grid-cols-12 gap-6" >
-                        <img :src="Avatar" alt="" class="rounded-full col-span-2">
+                        <img :src="user.profile_picture" alt="" class="rounded-full col-span-2">
 
                         <input @focus="createPostFocused" class="col-span-10 dark:text-white dark:bg-slate-700 rounded-full border-secondary-300 text-sm focus:outline-0 focus:outline-none focus:ring-0 focus:border-secondary-300" placeholder="What's new?">
                       </div>
@@ -238,7 +240,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
 
                         <div class="grid grid-cols-12 gap-3 border-b border-secondary-300">
                           <div class="col-span-2 relative">
-                            <img :src="Avatar" alt="" class="rounded-full w-full">
+                            <img :src="user.profile_picture" alt="" class="rounded-full w-full">
 
                             <span :class="rem_chars <= 0 ? 'text-red-500' : ''" class="absolute bottom-0 text-sm mb-1 text-secondary-200 font-semibold">{{ rem_chars }}</span>
                           </div>
@@ -318,158 +320,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
               </div>
 
               <div class="posts mt-[70px] text-secondary-200 dark:text-slate-300">
-                <div v-for="(post, index) in posts" class="bg-white dark:bg-slate-800 rounded-lg shadow-lg" :key="index">
-                  <div class="px-4 py-2 pt-5 border-b border-secondary-300">
-                    <div class="inline-block">
-                      <img class="w-8 rounded-full inline-block" :src="Avatar" alt="">
-                      <span class="text-sm font-semibold inline-block ml-3">{{ post.user_name }}</span>
-                      <span class="text-secondary-600 text-xs font-bold inline-block ml-1">• {{post.relative_time}}</span>
-
-                    </div>
-
-                    <div class="float-right inline-block">
-                      <font-awesome-icon class="cursor-pointer" icon="fa-solid fa-ellipsis" />
-                    </div>
-                  </div>
-                  <div class=" px-3 py-1 ">
-
-                    <p class="transition-all ease-linear duration-300 text-sm leading-[26px]">
-                      <span v-if="post.caption == post.caption_short" class="inline-block" v-html="post.caption"></span>
-
-                      <span v-else-if="(post.caption != post.caption_short) && post.show_more" class="inline-block" ><span v-html="post.caption"></span> <span @click="post.show_more = !post.show_more" class="text-primary-100 inline-block ml-1 cursor-pointer hover:underline">less</span></span>
-
-                      <span v-else-if="(post.comment != post.caption_short) && !post.show_more" class="inline-block" ><span v-html="post.caption_short"></span> <span @click="post.show_more = !post.show_more" class="text-primary-100 inline-block ml-1 cursor-pointer hover:underline">read more</span> </span>
-                  </p>
-
-                  </div>
-
-                  <div class="px-3 py-3">
-                    <div class="grid grid-cols-12 gap-2">
-                      <template v-for="(media, media_index) in post.media" :key="media_index">
-
-                        <template v-if="media_index == 0">
-                          <div @click="openBiggerPost(index, 0)" v-if="media.type == 'image'" class="col-span-12 max-h-[300px] overflow-hidden rounded-xl cursor-pointer shadow-md">
-                            <img class="hover:transform hover:scale-110 transition-all ease-in-out duration-300 w-full h-full" :src="media.path" alt="">
-                          </div>
-
-                          <div @click="openBiggerPost(index, 0)" v-else class="col-span-12 max-h-[300px] overflow-hidden rounded-xl cursor-pointer shadow-xl relative">
-                            <div class="absolute bg-black w-full h-full opacity-50">
-                              <div class="relative h-full w-full">
-                                <font-awesome-icon class="absolute text-7xl top-0 bottom-0 right-0 left-0 m-auto text-white" icon="fa-solid fa-play" />
-                              </div>
-                            </div>
-                            <video class="hover:transform hover:scale-110 transition-all ease-in-out duration-300 w-full h-full" :src="media.path" alt=""></video>
-                          </div>
-                        </template>
-
-
-                        <template v-if="media_index == 1 || media_index == 2">
-
-                          <div @click="openBiggerPost(index, media_index)" v-if="media.type == 'image'" class="col-span-5 max-h-[300px] overflow-hidden rounded-xl cursor-pointer shadow-xl">
-                            <img class="hover:transform hover:scale-110 transition-all ease-in-out duration-300 w-full h-full" :src="media.small_path" alt="">
-                          </div>
-
-                          <div @click="openBiggerPost(index, media_index)" v-else class="col-span-5 max-h-[300px] overflow-hidden rounded-xl cursor-pointer shadow-xl relative">
-                            <div class="absolute bg-black w-full h-full opacity-50">
-                              <div class="relative h-full w-full">
-                                <font-awesome-icon class="absolute text-5xl top-0 bottom-0 right-0 left-0 m-auto text-white" icon="fa-solid fa-play" />
-                              </div>
-                            </div>
-                            <video class="hover:transform hover:scale-110 transition-all ease-in-out duration-300 w-full h-full" :src="media.path" alt=""></video>
-                          </div>
-                        </template>
-
-                        <div @click="openBiggerPost(index, 4)" v-if="post.media.length > 3 && media_index == post.media.length - 1" class="col-span-2 max-h-[300px] overflow-hidden rounded-xl cursor-pointer shadow-xl">
-                          <div class="w-full h-full bg-secondary-400 relative">
-                            <h5 class="text-lg text-white absolute top-0 bottom-0 left-0 right-0 m-auto ">+{{ post.media.length - 3 }} more</h5>
-                          </div>
-
-                        </div>
-                      </template>
-
-
-
-                    </div>
-                  </div>
-
-                  <div class="px-3 py-4 border-b border-secondary-300 dark:border-slate-500 ">
-                    <Link href="" class="text-sm">{{ post.likes }} likes</Link>
-                  </div>
-
-                  <div class="px-3 py-4 border-b border-secondary-300 dark:border-slate-500 ">
-                    <div class="text-sm">
-                      <div class="inline-block mr-8">
-                        <span @click="post.liked = !post.liked" class="cursor-pointer">
-                          <font-awesome-icon v-if="!post.liked" class=" " icon="fa-regular fa-heart" />
-                          <font-awesome-icon v-else class="text-primary-100 " icon="fa-solid fa-heart" />
-
-                          <span :class="post.liked ? 'text-primary-100' : ''" v-text="post.liked ? 'Liked' : 'Like'" class="inline-block ml-1">
-
-                          </span>
-                        </span>
-                      </div>
-
-                      <div @click="makeCommentAction(index)" :class="make_comment_open ? 'text-primary-100' : ''" class="inline-block mr-8 cursor-pointer hover:text-primary-100">
-                        <font-awesome-icon icon="fa-solid fa-comments" />
-                        <span class="inline-block mx-1">Comment</span>
-                        <span class="text-xs border-[1px] p-[1px] px-1 border-secondary-300 dark:border-slate-500 rounded-md">{{ post.comments.length }}</span>
-                      </div>
-
-                      <div class="inline-block  cursor-pointer hover:text-primary-100">
-                        <font-awesome-icon icon="fa-solid fa-share" />
-                        <span class="inline-block mx-1">Share</span>
-
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="px-3 py-4 ">
-                    <div class="">
-                      <span @click="openBiggerPost(index, 0)" class="text-primary-100 hover:underline text-sm cursor-pointer inline-block my-2"><font-awesome-icon icon="fa-regular fa-eye" /> Show all {{ post.comments.length }} comments</span>
-
-                      <div v-if="make_comment_open" class="my-4">
-                        <form class="grid grid-cols-12 gap-1">
-                          <div class="col-span-1">
-                            <img class="rounded-full w-full" :src="Avatar" alt="">
-                          </div>
-
-                          <div class="col-span-11">
-                            <textarea class="w-full rounded-full h-[40px] dark:text-white bg-transparent  border border-secondary-300 dark:border-slate-500 text-sm focus:outline-0 focus:outline-none focus:ring-0 focus:border-primary-100 overflow-hidden" placeholder=""></textarea>
-
-                            <div class="my-1">
-                              <button class="text-white bg-gradient-to-r from-primary-100 to-primary-200 rounded-full text-center text-sm py-1 px-8 shadow hover:from-primary-200 hover:to-primary-100">Post</button>
-
-                              <span @click="make_comment_open = false" class="inline-block mx-2 cursor-pointer text-primary-100 text-xs hover:underline">Cancel</span>
-                            </div>
-                          </div>
-                        </form>
-                      </div>
-
-                      <div class="">
-                        <div class="my-1" v-for="(comment, comment_index) in post.comments.slice(Math.max(post.comments.length - 2, 0))" :key="comment_index">
-
-                          <div class="grid grid-cols-12 gap-2">
-                            <p class="text-sm col-span-11">
-                              <span class="text-secondary-400 font-bold inline-block mr-2">{{ comment.user_name }}</span>
-                              <span v-if="comment.comment == comment.comment_shrt" class="inline-block">{{ comment.comment }}</span>
-
-                              <span v-else-if="(comment.comment != comment.comment_shrt) && comment.show_more" class="inline-block">{{ comment.comment }}</span>
-
-                              <span v-else-if="(comment.comment != comment.comment_shrt) && !comment.show_more" class="inline-block">{{ comment.comment_shrt }} <span @click="comment.show_more = true" class="cursor-pointer  font-semibold inline-block ml-1">show more</span> </span>
-
-                            </p>
-
-                            <span class="float-right col-span-1">
-                              <font-awesome-icon @click="toggleCommentLike(index, comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
-                              <font-awesome-icon @click="toggleCommentLike(index, comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
-                            </span>
-
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <Post v-for="(post, index) in posts" :key="index" :post="post" :index="index" :make_comment_open="make_comment_open" @open-bigger-post="openBiggerPost" @make-comment-action="makeCommentAction" @toggle-comment-like="toggleCommentLike" />
               </div>
             </div>
           </div>
@@ -482,144 +333,6 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
       </div>
     </div>
 
-    <div v-if="open_post_index !== false && open_media_index !== false"  class="fixed top-0 bottom-0 left-0 right-0 z-[900] ">
-      <div @click.stop="closeBigPostModal" class="h-screen w-screen bg-gradient-to-br from-slate-600/60 via-slate-700/60 to-slate-800/60 dark:bg-slate-900/80">
-
-      </div>
-
-      <div class="absolute top-0 right-0 m-2 mx-9">
-        <font-awesome-icon @click.stop="closeBigPostModal" class="cursor-pointer text-3xl dark:text-gray-300 text-gray-100" icon="fa-solid fa-xmark" />
-      </div>
-
-      <div class="absolute m-auto min-h-fit sm:max-h-[90%] md:max-h-[55%] lg:max-h-[90%]  top-0 bottom-0 left-0 right-0 bg-white dark:bg-slate-700 w-10/12  z-[1000] rounded flex">
-
-        <div class="relative h-full">
-
-
-          <div class="w-full sm:h-full h-screen sm:grid sm:grid-cols-12 sm:gap-0 relative">
-            <div v-if="posts[open_post_index].media.length > 0" class="sm:col-span-6 sm:h-full h-[35%] col-span-12 relative">
-
-              <font-awesome-icon @click="current_media_index -= 1" v-if="current_media_index > 0 || (posts[open_post_index].media.length == 1)" class="absolute top-0 bottom-0 my-auto left-0 text-white mx-2 bg-gray-300 p-2 rounded-full cursor-pointer" icon="fa-solid fa-angle-left" />
-
-
-              <font-awesome-icon @click="current_media_index += 1" v-if="(current_media_index < posts[open_post_index].media.length - 1)" class="absolute top-0 bottom-0 my-auto right-0 text-white mx-2 bg-gray-300 p-2 rounded-full cursor-pointer" icon="fa-solid fa-angle-right" />
-
-              <div class="absolute bottom-0 right-0 left-0 m-auto  my-4 flex justify-center">
-                <template v-for="(media, index) in posts[open_post_index].media" :key="index">
-                  <div :class="current_media_index == index ? 'bg-white' : 'bg-gray-200/80'" class="p-[3px] rounded-full  mx-[2px] inline-block">
-
-                  </div>
-                </template>
-              </div>
-
-              <template v-for="(media, index) in posts[open_post_index].media" :key="index">
-                <div v-if="current_media_index == index" class="h-full sm:h-full bg-black" >
-                  <div v-if="media.type == 'image'" class="h-full">
-                    <!-- <img class="w-full h-full" :src="media.path" alt=""> -->
-                    <div class="w-full h-full bg-contain bg-no-repeat bg-center" :style="`background-image: url('${media.path}') `">
-
-                    </div>
-                  </div>
-                  <div v-else class="">
-                    <video class="w-full h-full" :src="media.path" alt=""> </video>
-                  </div>
-                </div>
-              </template>
-
-            </div>
-
-            <div class="sm:col-span-6 col-span-12 sm:h-full h-[65%] text-secondary-200 dark:text-slate-300 text-sm ">
-              <div class="py-2 h-full">
-                <div class="flex h-[12%] sm:h-fit justify-between py-3 px-6 border-b-[1px] border-secondary-300 dark:border-slate-500">
-                  <div class="">
-                    <img class="w-7 rounded-full inline-block " :src="Avatar" alt="">
-                    <Link href="#" class="text-sm font-semibold inline-block mx-3 mr-1 hover:text-slate-300">{{ posts[open_post_index].user_name }}</Link>
-                    <span>•</span>
-                    <Link href="#" class="text-primary-100 hover:text-primary-200 inline-block ml-3">Follow</Link>
-                  </div>
-
-                  <div class="">
-                    <font-awesome-icon class="cursor-pointer text-xl" icon="fa-solid fa-ellipsis" />
-                  </div>
-                </div>
-
-                <div class="px-6 py-3 h-[53%] sm:h-[330px] border-b-[1px] border-secondary-300 dark:border-slate-500 overflow-y-scroll">
-                  <div class="grid grid-cols-12 gap-3">
-                    <div class="col-span-1">
-                      <img class="w-full rounded-full inline-block " :src="Avatar" alt="">
-                    </div>
-
-                    <div class="col-span-11">
-                      <p><Link href="#" class="text-sm font-semibold inline-block hover:text-slate-300 mr-1">{{ posts[open_post_index].user_name }}</Link> <span v-html="posts[open_post_index].caption"></span>  </p>
-                    </div>
-                  </div>
-
-                  <div v-for="(comment, comment_index) in posts[open_post_index].comments" :key="comment_index" class="grid grid-cols-12 gap-3 mt-4">
-                    <!-- <template > -->
-                      <div class="col-span-1">
-                        <img class="w-full rounded-full inline-block " :src="`/images/${comment.photo}`" alt="">
-                      </div>
-
-                      <div class="col-span-10">
-                        <p><Link href="#" class="text-sm font-semibold inline-block hover:text-slate-300 mr-1">{{ comment.user_name }}</Link> <span v-html="comment.comment"></span>  </p>
-                      </div>
-
-                      <div class="col-span-1">
-                        <font-awesome-icon @click="toggleCommentLike(open_post_index, comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
-                        <font-awesome-icon @click="toggleCommentLike(open_post_index, comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
-                      </div>
-                    <!-- </template> -->
-                  </div>
-
-                </div>
-
-                <div class="px-6 h-[25%] sm:h-fit py-2 border-b-[1px] border-secondary-300 dark:border-slate-500 ">
-
-                  <div class="text-2xl">
-                    <font-awesome-icon @click="posts[open_post_index].liked = !posts[open_post_index].liked" v-if="posts[open_post_index].liked" icon="fa-regular fa-heart" class="cursor-pointer"/>
-
-                    <font-awesome-icon @click="posts[open_post_index].liked = !posts[open_post_index].liked" v-else icon="fa-solid fa-heart" class=" text-primary-100 cursor-pointer"/>
-
-                    <font-awesome-icon icon="fa-regular fa-comment"  class="cursor-pointer mx-3"/>
-
-                    <font-awesome-icon icon="fa-regular fa-share-from-square" class="cursor-pointer"/>
-                  </div>
-
-                  <span class="text-[16px] inline-block mt-3 my-2 mb-1 cursor-pointer">{{ posts[open_post_index].likes }} likes</span>
-
-                  <p class="text-xs text-secondary-600">{{ posts[open_post_index].relative_time }} ago</p>
-
-                </div>
-
-                <div class="px-6 py-2 h-[10%] sm:h-full">
-                  <div v-if="show_select_emoji" class="absolute top-0">
-                    <div class="relative p-3">
-                      <EmojiPicker  tabindex="0" class="" :native="true" @select="onSelectEmoji" />
-
-                      <font-awesome-icon @click.stop="show_select_emoji = false" class="absolute bottom-0  cursor-pointer text-xl dark:text-slate-400 text-slate-700 mt-3 -ml-3 p-2 dark:bg-white bg-slate-200 rounded-full" icon="fa-solid fa-xmark" />
-                    </div>
-                  </div>
-                  <form>
-                    <div class="grid grid-cols-12 gap-3">
-                      <div class="col-span-1">
-                        <font-awesome-icon @click="show_select_emoji = !show_select_emoji" class="sm:text-2xl  text-xl cursor-pointer" icon="fa-regular fa-face-smile" />
-                      </div>
-
-                      <div class="col-span-10">
-                        <input type="text" v-model="make_comment_form.comment" class="w-full border-0 text-sm p-0 focus:outline-0 focus:outline-none focus:ring-0 bg-transparent dark:text-gray-200" placeholder="Add Comment...." ref="comment_input">
-                      </div>
-
-                      <div class="col-span-1">
-                        <button :class="make_comment_form.comment == '' ? 'opacity-65 cursor-not-allowed' : ''" class="text-primary-100 font-semibold bg-transparent">Post</button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <PostPopup v-model:open-post-index="open_post_index" v-model:open-media-index="open_media_index"  v-model:current-media-index="current_media_index" :post="open_post_index !== false && open_media_index !== false ? posts[open_post_index] : {}"  :make_comment_form="make_comment_form"/>
   </LayoutSocial>
 </template>

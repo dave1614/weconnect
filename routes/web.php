@@ -3,16 +3,27 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ChangePasswordController;
+use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EarningsController;
 use App\Http\Controllers\EasyLoanController;
 use App\Http\Controllers\GenealogyController;
+use App\Http\Controllers\HashTagController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MainPageController;
 use App\Http\Controllers\NewsLetterController;
+use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReplyCommentController;
 use App\Http\Controllers\SavingsController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\TestController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\VtuController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Foundation\Application;
@@ -75,11 +86,20 @@ Route::post('/submit_front_page_message', [MainPageController::class, 'submitFro
 
 Route::post('/news_letter_list', [NewsLetterController::class, 'store'])->name('news_letter_list.store');
 
-Route::get('/test/social_media_home', [TestController::class, 'socialMediaHomePage'])->name('tests.social_media_home');
 
+Route::scopeBindings()->name('location.')->group(function () {
+    Route::post('/location/get_new_lgas_and_wards/{state}', [LocationController::class, 'getNewLgasAndWards'])->name('get_new_lgas_and_wards');
+
+
+    Route::post('/location/get_new_wards/{lga}', [LocationController::class, 'getNewWards'])->name('get_new_wards');
+
+
+});
 
 
 Route::middleware(['providus', 'verified', 'auth'])->group(function () {
+    Route::get('/test/social_media_home', [TestController::class, 'socialMediaHomePage'])->name('tests.social_media_home');
+
     Route::get('/registration_step_2', [AuthenticatedSessionController::class, 'registrStep2'])->name('registration_step_2');
     Route::post('/submit_proof_of_payment_to_admin', [AuthenticatedSessionController::class, 'submitProofOfPaymentToAdmin'])->name('submit_proof_of_payment_to_admin');
     Route::post('/get_placement_info_registration', [AuthenticatedSessionController::class, 'getPlacementInfoRegistration'])->name('get_reg_placement_info');
@@ -90,6 +110,7 @@ Route::middleware(['providus', 'verified', 'auth'])->group(function () {
 Route::middleware(['providus', 'auth', 'verified', 'check_registration', 'admin'])->group(function () {
 
 
+    Route::get('/manage_communities', [AdminController::class, 'loadManageCommunities'])->name('manage_communities');
     Route::get('/manage_vtu_history', [AdminController::class, 'loadManageVtuPageHistory'])->name('manage_vtu_history');
     Route::get('/manage_vtu/{param1?}', [AdminController::class, 'loadManageVtuPage'])->name('manage_vtu');
     Route::get('/goeasy_savings_admin', [AdminController::class, 'loadAdminGoEasySavingsPage'])->name('goeasy_savings_admin');
@@ -134,6 +155,15 @@ Route::middleware(['providus', 'auth', 'verified', 'check_registration', 'admin'
 
 
 
+    Route::post('/load_all_current_community_leaders', [AdminController::class, 'loadCurrentCommunityLeaders'])->name('load_all_current_community_leaders');
+    Route::post('/approve_community_leader/{leader_request}', [AdminController::class, 'approveCommunityLeaderRequest'])->name('approve_community_leader');
+    Route::post('/dismiss_community_leader_request/{leader_request}', [AdminController::class, 'dismissCommunityLeaderRequest'])->name('dismiss_community_leader_request');
+    Route::post('/load_community_leader_requests', [AdminController::class, 'loadCommunityLeadersRequests'])->name('load_community_leader_requests');
+    Route::post('/load_community_members/{community}', [AdminController::class, 'loadAllCommunityMembersInCommunity'])->name('load_community_members');
+    Route::post('/apply_as_community_leader/{user}', [AdminController::class, 'applyAsCommunityLeader'])->name('apply_as_community_leader_admin');
+    Route::post('/remove_community_leader/{user}', [AdminController::class, 'removeCommunityLeader'])->name('remove_community_leader');
+    Route::post('/load_community_leaders/{community}', [AdminController::class, 'loadAllCommunityLeadersInCommunity'])->name('load_community_leaders');
+    Route::post('/load_communities_for_work', [AdminController::class, 'loadAllCommunitiesForWork'])->name('load_communities_for_work');
     Route::post('/save_educational_plans_settings', [AdminController::class, 'saveEducationalPlansSettings'])->name('save_educational_plans_settings');
     Route::post('/load_educational_plans_details_by_network_admin', [AdminController::class, 'loadEducationalPlanDetailsByNetwork'])->name('load_educational_plans_details_by_network_admin');
     Route::post('/save_router_plans_settings', [AdminController::class, 'saveRouterPlansSettings'])->name('save_router_plans_settings');
@@ -207,8 +237,14 @@ Route::middleware(['providus', 'auth', 'verified'])->group(function () {
     Route::get('deactivate_saving_plan', [SavingsController::class, 'showDeactivateSavingPlanPage'])->name('deactivate_saving_plan');
     Route::get('saving/{easySaving}', [SavingsController::class, 'showSavingDetailsPage'])->name('view_saving_details');
     Route::get('earnings_wallet', [EarningsController::class, 'showEarningsMainPage'])->name('earnings_wallet_page');
+    Route::get('/', [HomeController::class, 'socialMediaHomePage'])->name('home_page');
 
 
+
+    Route::scopeBindings()->name('user.')->group(function () {
+        Route::get('/load_details/{user}', [UserController::class, 'loadDetails'])->name('load_details');
+        Route::post('/toggle_follow/{user}', [UserController::class, 'toggleFollow'])->name('toggle_follow');
+    });
 
 
 
@@ -241,8 +277,117 @@ Route::middleware(['providus', 'auth', 'verified'])->group(function () {
         return Inertia::render('ErrorView');
     })->name('error');
 
+    Route::scopeBindings()->name('profile.')->group(function () {
+        Route::get('/{user:slug}', [ProfileController::class, 'show'])->name('show');
 
 
+        Route::post('/{user:slug}/load_more_posts', [ProfileController::class, 'loadMorePosts'])->name('load_more_posts');
+        Route::post('/update_profile_picture', [ProfileController::class, 'updateProfilePicture'])->name('update_profile_picture');
+        Route::post('/update_cover_photo', [ProfileController::class, 'updateCoverPhoto'])->name('update_cover_photo');
+        Route::post('/{user:slug}/followers', [ProfileController::class, 'showFollowers'])->name('followers.show');
+        Route::post('/{user:slug}/following', [ProfileController::class, 'showFollowing'])->name('following.show');
+
+
+    });
+
+
+    Route::scopeBindings()->name('community.')->group(function () {
+        Route::get('/community/{community}', [CommunityController::class, 'profilePage'])->name('profile');
+
+
+        Route::post('/community/{community}/load_more_posts', [CommunityController::class, 'loadMorePosts'])->name('load_more_posts');
+        Route::post('/community/upload_new_gallery_image', [CommunityController::class, 'uploadNewGalleryImage'])->name('upload_new_gallery_image');
+        Route::post('/community/{community}/gallery/{image}/delete_image', [CommunityController::class, 'deleteGalleryImage'])->name('delete_gallery_image');
+        Route::post('/community/{community}/gallery', [CommunityController::class, 'loadGallery'])->name('gallery');
+        Route::post('/community/{communityDetail}/modify_history', [CommunityController::class, 'modifyHistory'])->name('modify_history');
+        Route::post('/community/{community}/leaders', [CommunityController::class, 'showLeaders'])->name('leaders_list');
+        Route::post('/community/{community}/residents', [CommunityController::class, 'showResidents'])->name('residents_list');
+        Route::post('/community/update_logo', [CommunityController::class, 'updateLogo'])->name('update_logo');
+        Route::post('/community/update_cover_photo', [CommunityController::class, 'updateCoverPhoto'])->name('update_cover_photo');
+        Route::post('/apply_as_community_leader', [CommunityController::class, 'applyAsLeader'])->name('apply_as_leader');
+        Route::post('/remove_community_leader_request', [CommunityController::class, 'removeLeaderRequest'])->name('remove_leader_request');
+        Route::post('/resign_community_leader_request', [CommunityController::class, 'resignLeaderRequest'])->name('resign_leader_request');
+
+
+
+
+
+
+    });
+
+    Route::scopeBindings()->name('search.')->group(function () {
+
+        Route::get('/search/posts', [SearchController::class, 'show'])->name('show');
+
+
+        Route::post('/load_more_posts/{search}', [SearchController::class, 'loadMorePosts'])->name('load_more_posts');
+        Route::post('/search/run_search', [SearchController::class, 'runSearch'])->name('run_search');
+        Route::post('/search/store', [SearchController::class, 'store'])->name('store');
+        Route::post('/search/delete_recent_all', [SearchController::class, 'deleteAllRecentSearches'])->name('delete_recent_all');
+        Route::post('/search/{search}/delete_recent', [SearchController::class, 'deleteSingleRecentSearch'])->name('delete_recent');
+        Route::post('/search/recent', [SearchController::class, 'recentSearches'])->name('recent');
+
+    });
+
+    Route::scopeBindings()->name('notification.')->group(function () {
+        Route::get('/notifications/all', [NotificationsController::class, 'index'])->name('index');
+        Route::get('/notification/{notification}', [NotificationsController::class, 'show'])->name('show');
+    });
+
+    Route::scopeBindings()->name('tag.')->group(function () {
+        Route::get('/tags/{tag}', [HashTagController::class, 'show'])->name('show');
+
+        Route::post('/load_more_posts/{tag}', [HashTagController::class, 'loadMorePosts'])->name('load_more_posts');
+    });
+
+    Route::scopeBindings()->name('bookmark.')->group(function () {
+        Route::get('/bookmarks/all', [BookmarkController::class, 'index'])->name('index');
+
+        Route::post('/bookmarks/load_more_post', [BookmarkController::class, 'loadMorePosts'])->name('load_more_posts');
+    });
+
+
+
+
+    Route::scopeBindings()->name('post.')->group(function () {
+
+        Route::get('/post/{post}', [PostController::class, 'show'])->name('show');
+        Route::get('/post/{post}/edit', [PostController::class, 'edit'])->name('edit');
+
+
+
+        Route::post('/posts/{post}/destroy', [PostController::class, 'destroy'])->name('destroy');
+        Route::post('/posts/{post}/update', [PostController::class, 'update'])->name('update');
+        Route::post('/posts/{post}/update_media_file', [PostController::class, 'updateMediaFile'])->name('update_media_file');
+        Route::post('/posts/{post}/add_new_media_file', [PostController::class, 'addNewMediaFile'])->name('add_new_media_file');
+        Route::post('/posts/{post}/delete_media', [PostController::class, 'deleteMedia'])->name('delete_media');
+        Route::post('/post/store', [PostController::class, 'store'])->name('store');
+        Route::post('/posts/{post}/favorite', [PostController::class, 'toggleFavorite'])->name('toggle_favorite');
+        Route::post('/posts/{post}/likes', [PostController::class, 'showLikes'])->name('likes.show');
+        Route::post('/posts/{post}/like', [PostController::class, 'toggleLike'])->name('toggle_like');
+        Route::post('/posts/{post}/more_comments', [PostController::class, 'loadMoreComments'])->name('more_comments');
+    });
+
+    Route::scopeBindings()->name('comment.')->group(function () {
+
+
+        Route::post('/comments/{comment}/delete', [CommentController::class, 'destroy'])->name('destroy');
+        Route::post('/posts/{post}/store', [CommentController::class, 'store'])->name('store');
+        Route::post('/posts/{post}/comments/{comment}/replies', [CommentController::class, 'loadReplies'])->name('replies');
+        Route::post('/comments/{comment}/likes', [CommentController::class, 'showLikes'])->name('likes.show');
+        Route::post('/posts/{post}/comments/{comment}/like', [CommentController::class, 'toggleLike'])->name('toggle_like');
+    });
+
+    Route::scopeBindings()->name('reply.')->group(function () {
+
+        Route::post('/replies/{reply}/delete', [ReplyCommentController::class, 'destroy'])->name('destroy');
+        Route::post('/comments/{comment}/reply', [ReplyCommentController::class, 'store'])->name('store');
+        Route::post('/replies/{reply}/likes', [ReplyCommentController::class, 'showLikes'])->name('likes.show');
+        Route::post('/posts/{post}/comments/{comment}/replies/{reply}/like', [ReplyCommentController::class, 'toggleLike'])->name('toggle_like');
+    });
+
+
+    Route::post('/load_more_posts_home', [HomeController::class, 'loadMorePosts'])->name('load_more_posts_home');
     Route::post('/wallet/statement_details', [WalletController::class, 'statementDetails'])->name('wallet.statement_details');
     Route::post('/wallet/paystack_payment_init', [WalletController::class, 'paystackPaymentInit'])->name('wallet.paystack_payment_init');
     Route::post('transfer_earnin_to_main_wallet', [EarningsController::class, 'transferEarningToMainWallet'])->name('transfer_earnin_to_main_wallet');

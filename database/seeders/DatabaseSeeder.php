@@ -22,12 +22,16 @@ class DatabaseSeeder extends Seeder
         // ]);
         $this->call([
             CountrySeeder::class,
+            InecStateSeeder::class,
+            InecLgaSeeder::class,
+            InecWardSeeder::class,
             RegionSeeder::class,
             StateSeeder::class,
             CitySeeder::class,
             UserSeeder::class,
             MlmDbSeeder::class,
             MlmChargesTableSeeder::class,
+            CommunityLeaderRoleSeeder::class,
             VtuPlatformTableSeeder::class,
             EtisalatComboDataPlansTableSeeder::class,
             // SavingsFrequencySeeder::class,
@@ -37,6 +41,9 @@ class DatabaseSeeder extends Seeder
             CablePlansSeeder::class,
             RouterPlansSeeder::class,
             EducationalPlanSeeder::class,
+
+            FollowDetailSeeder::class,
+            PostSeeder::class,
         ]);
 
     }

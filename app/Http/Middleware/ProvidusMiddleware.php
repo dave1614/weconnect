@@ -49,31 +49,31 @@ class ProvidusMiddleware
                     "bvn" => ""
                 ];
 
-                $use_post = true;
-                $response = $this->functions->providusVtuCurl($url, $use_post, $post_data);
+                // $use_post = true;
+                // $response = $this->functions->providusVtuCurl($url, $use_post, $post_data);
 
-                if ($this->functions->isJson($response)) {
-                    $response = json_decode($response);
-                    if ($response->responseCode == "00" && $response->requestSuccessful == true) {
+                // if ($this->functions->isJson($response)) {
+                //     $response = json_decode($response);
+                //     if ($response->responseCode == "00" && $response->requestSuccessful == true) {
 
-                        $user->providus_account_number = $response->account_number;
-                        $user->providus_account_name = $response->account_name;
+                //         $user->providus_account_number = $response->account_number;
+                //         $user->providus_account_name = $response->account_name;
 
-                        $user->save();
-                    }
-                }
+                //         $user->save();
+                //     }
+                // }
             }
 
             // $registration_amt_paid = $user->registration_amt_paid;
             // if ($registration_amt_paid > $sign_up_amt && $user->created == 1) {
-                
+
             //     $amount = $registration_amt_paid - $sign_up_amt;
             //     $summary = "Account Credit Of " . $amount;
-                
+
             //     $this->functions->creditUser($user->id, $amount, $summary);
             //     $user->registration_amt_paid = $sign_up_amt;
             //     $user->save();
-                 
+
             // }
 
             // if($user->created == 1 && $user->is_admin != 1){
@@ -81,9 +81,9 @@ class ProvidusMiddleware
             //     ->first();
             //     // dd($users_weekly);
             //     if (!is_null($users_weekly)) {
-                    
+
             //         $this->functions->processUserWeeklyRout($user->id);
-                    
+
             //     }
 
             //     if ($this->functions->checkIfUserHasAnyCurrentSavingsOn($user->id)) {

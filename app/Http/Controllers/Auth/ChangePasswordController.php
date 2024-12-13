@@ -31,7 +31,7 @@ class ChangePasswordController extends Controller
      */
     public function create()
     {
-       
+
     }
 
     /**
@@ -102,14 +102,14 @@ class ChangePasswordController extends Controller
         $remember_me  = TRUE;
 
         if (Auth::attempt($user_data)) {
-            
+
             $user->password = Hash::make($request->new_password);
             $user->remember_token =  Str::random(10);
 
             $user->save();
             Auth::login($user, $remember_me);
             $response_arr['success'] = true;
-            $response_arr['redirect_url'] = route('dashboard');
+            $response_arr['redirect_url'] = route('home_page');
         }
 
 

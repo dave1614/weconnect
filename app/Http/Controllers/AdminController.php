@@ -9,11 +9,14 @@ use App\Models\AdminFundUsersHistory;
 use App\Models\AirtimeTopup;
 use App\Models\CablePlan;
 use App\Models\ComboRechargeVtu;
+use App\Models\CommunityHeadRequest;
+use App\Models\CommunityLeaderRole;
 use App\Models\Country;
 use App\Models\DataPlan;
 use App\Models\EasyLoan;
 use App\Models\EasySavings;
 use App\Models\EducationalPlan;
+use App\Models\InecWard;
 use App\Models\MlmDb;
 use App\Models\MlmEarning;
 use App\Models\RouterPlan;
@@ -21,6 +24,10 @@ use App\Models\TransferFundsHistory;
 use App\Models\User;
 use App\Models\VtuTransaction;
 use App\Models\WithdrawalRequest;
+use App\Notifications\CommunityLeaderRemoved;
+use App\Notifications\LeaderRequestApproved;
+use App\Notifications\LeaderRequestDismissed;
+use App\Notifications\PostLikedNotification;
 use App\Rules\CountryRule;
 use App\Rules\PhoneEditProfRule;
 use Illuminate\Http\Request;
@@ -57,7 +64,7 @@ class AdminController extends Controller
             'glo' => ['gsubz' => 'gsubz', 'clubkonnect' => 'clubkonnect'],
             '9mobile' => ['gsubz' => 'gsubz', 'clubkonnect' => 'clubkonnect'],
         ];
-        
+
         $this->data_platforms = [
             'mtn' => ['payscribe' => 'payscribe', 'gsubz_mtn_sme' => 'gsubz_mtn_sme', 'gsubz_mtn_cg' => 'gsubz_mtn_cg', 'gsubz_mtncg' => 'gsubz_mtncg', 'gsubz_mtn_cg_lite' => 'gsubz_mtn_cg_lite', 'gsubz_mtn_coupon' => 'gsubz_mtn_coupon', 'clubkonnect' => 'clubkonnect'],
             'airtel' => ['payscribe' => 'payscribe', 'gsubz_airtel_cg' => 'gsubz_airtel_cg', 'gsubz_airtelcg' => 'gsubz_airtelcg', 'clubkonnect' => 'clubkonnect'],
@@ -66,14 +73,15 @@ class AdminController extends Controller
         ];
 
         $this->electricity_platforms = [
-            'buypower' => 'buypower', 'payscribe' => 'payscribe',
+            'buypower' => 'buypower',
+            'payscribe' => 'payscribe',
         ];
 
         $this->cable_platforms = [
             'dstv' => ['clubkonnect' => 'clubkonnect', 'payscribe' => 'payscribe'],
             'gotv' => ['clubkonnect' => 'clubkonnect', 'payscribe' => 'payscribe'],
             'startimes' => ['clubkonnect' => 'clubkonnect', 'payscribe' => 'payscribe'],
-            
+
         ];
 
         $this->router_platforms = [
@@ -91,7 +99,7 @@ class AdminController extends Controller
         ];
     }
 
-    
+
 
     public function loadManageVtuPage(Request $request, $param1 = null)
     {
@@ -101,7 +109,7 @@ class AdminController extends Controller
         $props['tvs'] = $this->tvs;
         $props['routers'] = $this->routers;
         $props['educationals'] = $this->educationals;
-        
+
         $props['airtime_platforms'] = $this->airtime_platforms;
         $props['data_platforms'] = $this->data_platforms;
         $props['electricity_platforms'] = $this->electricity_platforms;
@@ -110,13 +118,687 @@ class AdminController extends Controller
         $props['educational_platforms'] = $this->educational_platforms;
         $props['history_opened'] = $param1 == 'history' ? true : false;
 
-        
+
         // return $props;
         return Inertia::render('Admin/ManageVtu', $props);
     }
 
+    public function loadManageCommunities(Request $request, $param1 = null)
+    {
 
-    public function loadManageVtuPageHistory(Request $request){
+        $props['user'] = Auth::user();
+
+        $props['community_leader_roles'] = [];
+        $roles = CommunityLeaderRole::where('id', '!=', 0)->get('name');
+
+        foreach ($roles as $role) {
+            $props['community_leader_roles'][] = strtolower($role->name);
+        }
+
+        // return $props;
+        return Inertia::render('Admin/ManageCommunities', $props);
+    }
+
+
+    public function loadAllCommunitiesForWorkTest(Request $request)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+        $communities = InecWard::where('inec_wards.id', '!=', 0);
+
+        $communities = $communities->join('inec_lgas as a', 'inec_wards.inec_lga_id', '=', 'a.id')->addSelect('a.name as lga');
+        $communities = $communities->join('inec_states as b', 'inec_wards.inec_state_id', '=', 'b.id')->addSelect('b.name as state');
+
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM users u1 WHERE u1.ward_id = inec_wards.id) as users_num");
+        $communities = $communities->selectRaw(" (SELECT updated_at FROM users u2 WHERE (u2.ward_id = inec_wards.id) ORDER BY STR_TO_DATE(`updated_at`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_user_registered_date");
+
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM users u3 WHERE (u3.ward_id = inec_wards.id) AND u3.community_leader IS NOT NULL ) as community_leaders_num");
+        $communities = $communities->selectRaw(" (SELECT community_leader_date FROM users u4 WHERE (u4.ward_id = inec_wards.id) AND u4.community_leader IS NOT NULL  ORDER BY STR_TO_DATE(`community_leader_date`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_community_leader_date");
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM community_head_requests c1 WHERE (c1.ward_id = inec_wards.id) ) as pending_community_leaders_num");
+        $communities = $communities->selectRaw(" (SELECT updated_at FROM community_head_requests c2 WHERE (c2.ward_id = inec_wards.id)  ORDER BY STR_TO_DATE(`updated_at`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_pending_community_leader_date");
+
+
+
+        $communities = $communities->addSelect('inec_wards.*');
+
+
+        $communities = $request->has('lga') ? $communities->where('a.name', 'like', '%' . $request->query('lga') . '%') : $communities;
+        $communities = $request->has('state') ? $communities->where('b.name', 'like', '%' . $request->query('state') . '%') : $communities;
+
+
+        $communities = $request->has('users_num') ? $communities->having('users_num', '=', $request->users_num) : $communities;
+        $communities = $request->has('last_user_registered_date') ? $communities->havingRaw("STR_TO_DATE(last_user_registered_date, '%Y-%m-%d') = '" . $request->last_user_registered_date . "'") : $communities;
+        $communities = $request->has('community_leaders_num') ? $communities->having('community_leaders_num', '=', $request->community_leaders_num) : $communities;
+        $communities = $request->has('last_community_leader_date') ? $communities->havingRaw("STR_TO_DATE(last_community_leader_date, '%Y-%m-%d') = '" . $request->last_community_leader_date . "'") : $communities;
+        $communities = $request->has('pending_community_leaders_num') ? $communities->having('pending_community_leaders_num', '=', $request->pending_community_leaders_num) : $communities;
+        $communities = $request->has('last_pending_community_leader_date') ? $communities->havingRaw("STR_TO_DATE(last_pending_community_leader_date, '%Y-%m-%d') = '" . $request->last_pending_community_leader_date . "'") : $communities;
+
+
+        $communities = $communities->orderByRaw("inec_wards.id DESC")
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+        return $communities;
+    }
+
+    public function loadCurrentCommunityLeaders(Request $request)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+
+
+        $leaders = User::whereNotNull('users.community_leader');
+
+
+        $leaders = $leaders->join('community_leader_roles as a', 'users.community_leader', '=', 'a.id')->addSelect('a.name as position');
+        $leaders = $leaders->join('inec_wards as b', 'users.ward_id', '=', 'b.id')->addSelect('b.name as community');
+        $leaders = $leaders->join('inec_lgas as c', 'users.lga_id', '=', 'c.id')->addSelect('c.name as lga');
+        $leaders = $leaders->join('inec_states as d', 'users.state_id', '=', 'd.id')->addSelect('d.name as state');
+
+
+
+        $leaders = $leaders->selectRaw("STR_TO_DATE(users.community_leader_date, '%Y-%m-%d %H:%i:%s') as approval_date");
+
+        $leaders = $leaders->addSelect('users.*');
+
+
+        $leaders = $request->has('name') ? $leaders->where('users.name', 'like', '%' . $request->query('name') . '%') : $leaders;
+        $leaders = $request->has('user_name') ? $leaders->where('users.user_name', 'like', '%' . $request->query('user_name') . '%') : $leaders;
+        $leaders = $request->has('community') ? $leaders->where('b.name', 'like', '%' . $request->query('community') . '%') : $leaders;
+        $leaders = $request->has('lga') ? $leaders->where('c.name', 'like', '%' . $request->query('lga') . '%') : $leaders;
+        $leaders = $request->has('state') ? $leaders->where('d.name', 'like', '%' . $request->query('state') . '%') : $leaders;
+
+
+        $leaders = $request->has('email') ? $leaders->where('users.email', 'like', '%' . $request->query('email') . '%') : $leaders;
+        $leaders = $request->has('phone') ? $leaders->where('users.phone', 'like', '%' . $request->query('phone') . '%') : $leaders;
+        $leaders = $request->has('position') ? $leaders->where('a.name', 'like', '%' . $request->query('position') . '%') : $leaders;
+
+
+
+
+        $leaders = $request->has('approval_date') ? $leaders->havingRaw("STR_TO_DATE(users.community_leader_date, '%Y-%m-%d') = '" . $request->approval_date . "'") : $leaders;
+
+
+        $sort = "approval_date DESC";
+
+        if ($request->has('sort')) {
+            $sort_dir = $request->query('sort');
+
+            if ($sort_dir == 'name_asc') {
+                $sort = "users.name ASC";
+            } else if ($sort_dir == 'name_desc') {
+                $sort = "users.name DESC";
+            } else if ($sort_dir == 'user_name_asc') {
+                $sort = "users.user_name ASC";
+            } else if ($sort_dir == 'user_name_desc') {
+                $sort = "users.user_name DESC";
+            } else if ($sort_dir == 'community_asc') {
+                $sort = "b.name ASC";
+            } else if ($sort_dir == 'community_desc') {
+                $sort = "b.name DESC";
+            } else if ($sort_dir == 'lga_asc') {
+                $sort = "c.name ASC";
+            } else if ($sort_dir == 'lga_desc') {
+                $sort = "c.name DESC";
+            } else if ($sort_dir == 'state_asc') {
+                $sort = "d.name ASC";
+            } else if ($sort_dir == 'state_desc') {
+                $sort = "d.name DESC";
+            } else if ($sort_dir == 'email_asc') {
+                $sort = "users.email ASC";
+            } else if ($sort_dir == 'email_desc') {
+                $sort = "users.email DESC";
+            } else if ($sort_dir == 'phone_asc') {
+                $sort = "users.phone ASC";
+            } else if ($sort_dir == 'phone_desc') {
+                $sort = "users.phone DESC";
+            } else if ($sort_dir == 'position_asc') {
+                $sort = "a.name ASC";
+            } else if ($sort_dir == 'position_desc') {
+                $sort = "a.name DESC";
+            } else if ($sort_dir == 'approval_date_asc') {
+                $sort = "approval_date ASC";
+            } else if ($sort_dir == 'approval_date_desc') {
+                $sort = "approval_date DESC";
+            }
+        }
+
+        $leaders = $leaders->orderByRaw($sort)
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+
+
+        return $leaders;
+    }
+
+
+
+    public function approveCommunityLeaderRequest(Request $request, CommunityHeadRequest $leader_request)
+    {
+
+        $response = ['success' => false];
+        $auth_user = Auth::user();
+        $auth_user = User::find($auth_user->id);
+
+        $leader_user = User::find($leader_request->user_id);
+        $position = CommunityLeaderRole::find($leader_request->community_leader_role_id)->name;
+
+
+
+        $leader_user->notify(new LeaderRequestApproved($auth_user, $leader_request, $leader_user));
+
+
+        $leader_user->community_leader = $leader_request->community_leader_role_id;
+        $leader_user->community_leader_date = date('Y-m-d H:i:s');
+        $leader_user->community_leader_pending = 0;
+
+        $leader_user->save();
+
+        $community_id = $leader_request->ward_id;
+        $leader_request->delete();
+
+        if ($position == 'King') {
+            $this->functions->findOtherKingLeaderRequestsAndDismissThem($community_id);
+        }
+
+
+
+        $response['success'] = true;
+
+
+        return $response;
+    }
+
+    public function dismissCommunityLeaderRequest(Request $request, CommunityHeadRequest $leader_request)
+    {
+
+        $response = ['success' => false];
+        $auth_user = Auth::user();
+        $auth_user = User::find($auth_user->id);
+
+        $leader_user = User::find($leader_request->user_id);
+
+
+        $leader_user->notify(new LeaderRequestDismissed($auth_user, $leader_request, $leader_user));
+        $leader_request->delete();
+
+
+        $leader_user->community_leader_pending = 0;
+        $leader_user->save();
+        $response['success'] = true;
+
+
+        return $response;
+    }
+
+    public function loadCommunityLeadersRequests(Request $request)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+
+
+        $leader_requests = CommunityHeadRequest::where('community_head_requests.id', '!=', 0);
+
+        $leader_requests = $leader_requests->join('users as a', 'community_head_requests.user_id', '=', 'a.id')->addSelect('a.name as name', 'a.user_name as user_name', 'a.email as email', 'a.phone as phone');
+        $leader_requests = $leader_requests->join('community_leader_roles as b', 'community_head_requests.community_leader_role_id', '=', 'b.id')->addSelect('b.name as position');
+        $leader_requests = $leader_requests->join('inec_wards as c', 'community_head_requests.ward_id', '=', 'c.id')->addSelect('c.name as community');
+
+        $leader_requests = $leader_requests->selectRaw(" (SELECT inec_lga_id FROM inec_wards d WHERE (d.id = community_head_requests.ward_id)) as lga_id");
+        $leader_requests = $leader_requests->selectRaw(" (SELECT name FROM inec_lgas e WHERE (e.id = lga_id)) as lga");
+
+        $leader_requests = $leader_requests->selectRaw(" (SELECT inec_state_id FROM inec_lgas f WHERE (f.id = lga_id)) as state_id");
+        $leader_requests = $leader_requests->selectRaw(" (SELECT name FROM inec_states f WHERE (f.id = state_id)) as state");
+
+
+
+
+        $leader_requests = $leader_requests->selectRaw("STR_TO_DATE(community_head_requests.created_at, '%Y-%m-%d %H:%i:%s') as request_date");
+
+        $leader_requests = $leader_requests->addSelect('community_head_requests.*');
+
+
+        $leader_requests = $request->has('name') ? $leader_requests->where('a.name', 'like', '%' . $request->query('name') . '%') : $leader_requests;
+        $leader_requests = $request->has('user_name') ? $leader_requests->where('a.user_name', 'like', '%' . $request->query('user_name') . '%') : $leader_requests;
+        $leader_requests = $request->has('community') ? $leader_requests->where('c.name', 'like', '%' . $request->query('community') . '%') : $leader_requests;
+        $leader_requests = $request->has('lga') ? $leader_requests->having('lga', 'like', '%' . $request->query('lga') . '%') : $leader_requests;
+        $leader_requests = $request->has('state') ? $leader_requests->having('state', 'like', '%' . $request->query('state') . '%') : $leader_requests;
+        $leader_requests = $request->has('email') ? $leader_requests->where('a.email', 'like', '%' . $request->query('email') . '%') : $leader_requests;
+        $leader_requests = $request->has('phone') ? $leader_requests->where('a.phone', 'like', '%' . $request->query('phone') . '%') : $leader_requests;
+        $leader_requests = $request->has('position') ? $leader_requests->where('b.name', 'like', '%' . $request->query('position') . '%') : $leader_requests;
+
+
+
+
+        $leader_requests = $request->has('request_date') ? $leader_requests->havingRaw("STR_TO_DATE(community_head_requests.created_at, '%Y-%m-%d') = '" . $request->request_date . "'") : $leader_requests;
+
+
+        $sort = "request_date DESC";
+
+        if ($request->has('sort')) {
+            $sort_dir = $request->query('sort');
+
+            if ($sort_dir == 'name_asc') {
+                $sort = "a.name ASC";
+            } else if ($sort_dir == 'name_desc') {
+                $sort = "a.name DESC";
+            } else if ($sort_dir == 'user_name_asc') {
+                $sort = "a.user_name ASC";
+            } else if ($sort_dir == 'user_name_desc') {
+                $sort = "a.user_name DESC";
+            } else if ($sort_dir == 'community_asc') {
+                $sort = "c.name ASC";
+            } else if ($sort_dir == 'community_desc') {
+                $sort = "c.name DESC";
+            } else if ($sort_dir == 'lga_asc') {
+                $sort = "lga ASC";
+            } else if ($sort_dir == 'lga_desc') {
+                $sort = "lga DESC";
+            } else if ($sort_dir == 'state_asc') {
+                $sort = "state ASC";
+            } else if ($sort_dir == 'state_desc') {
+                $sort = "state DESC";
+            } else if ($sort_dir == 'email_asc') {
+                $sort = "a.email ASC";
+            } else if ($sort_dir == 'email_desc') {
+                $sort = "a.email DESC";
+            } else if ($sort_dir == 'phone_asc') {
+                $sort = "a.phone ASC";
+            } else if ($sort_dir == 'phone_desc') {
+                $sort = "a.phone DESC";
+            } else if ($sort_dir == 'position_asc') {
+                $sort = "position ASC";
+            } else if ($sort_dir == 'position_desc') {
+                $sort = "position DESC";
+            } else if ($sort_dir == 'request_date_asc') {
+                $sort = "request_date ASC";
+            } else if ($sort_dir == 'request_date_desc') {
+                $sort = "request_date DESC";
+            }
+        }
+
+        $leader_requests = $leader_requests->orderByRaw($sort)
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+
+
+        return $leader_requests;
+    }
+
+
+    public function loadAllCommunityMembersInCommunity(Request $request, InecWard $community)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+
+
+        $community_members = User::where('users.ward_id', $community->id);
+
+        $community_members = $community_members->leftJoin('community_leader_roles as a', 'users.community_leader', '=', 'a.id')->addSelect('a.name as position');
+
+
+
+        $community_members = $community_members->selectRaw("STR_TO_DATE(users.created_at, '%Y-%m-%d %H:%i:%s') as registration_date");
+
+        // $community_leaders = $community_leaders->selectRaw(" (SELECT IF (Quantity > 10, 'MORE', 'LESS') FROM community_head_requests c1 WHERE (c1.ward_id = inec_wards.id) ) as position");
+
+        $community_members = $community_members->addSelect('users.*');
+
+
+
+
+        $community_members = $request->has('name') ? $community_members->where('users.name', 'like', '%' . $request->query('name') . '%') : $community_members;
+        $community_members = $request->has('name') ? $community_members->where('users.user_name', 'like', '%' . $request->query('user_name') . '%') : $community_members;
+        $community_members = $request->has('email') ? $community_members->where('users.email', 'like', '%' . $request->query('email') . '%') : $community_members;
+        $community_members = $request->has('phone') ? $community_members->where('users.phone', 'like', '%' . $request->query('phone') . '%') : $community_members;
+
+        if ($request->has('position')) {
+            if ($request->query('position') == 'subject') {
+                $community_members = $community_members->whereNull('users.community_leader');
+            } else if ($request->query('position') == 'all') {
+            } else {
+                $community_members = $community_members->where('a.name', $request->query('position'));
+            }
+        }
+        // $community_leaders = $request->has('position') ? $community_leaders->where('a.name', 'like', '%' . $request->query('position') . '%') : $community_leaders;
+
+
+        $community_members = $request->has('registration_date') ? $community_members->havingRaw("STR_TO_DATE(users.created_at, '%Y-%m-%d') = '" . $request->registration_date . "'") : $community_members;
+
+
+        $sort = "registration_date DESC";
+
+        if ($request->has('sort')) {
+            $sort_dir = $request->query('sort');
+
+            if ($sort_dir == 'name_asc') {
+                $sort = "users.name ASC";
+            } else if ($sort_dir == 'name_desc') {
+                $sort = "users.name DESC";
+            } else if ($sort_dir == 'user_name_asc') {
+                $sort = "users.user_name ASC";
+            } else if ($sort_dir == 'user_name_desc') {
+                $sort = "users.user_name DESC";
+            } else if ($sort_dir == 'email_asc') {
+                $sort = "users.email ASC";
+            } else if ($sort_dir == 'email_desc') {
+                $sort = "users.email DESC";
+            } else if ($sort_dir == 'phone_asc') {
+                $sort = "users.phone ASC";
+            } else if ($sort_dir == 'phone_desc') {
+                $sort = "users.phone DESC";
+            } else if ($sort_dir == 'position_asc') {
+                $sort = "a.name ASC";
+            } else if ($sort_dir == 'position_desc') {
+                $sort = "a.name DESC";
+            } else if ($sort_dir == 'registration_date_asc') {
+                $sort = "registration_date ASC";
+            } else if ($sort_dir == 'registration_date_desc') {
+                $sort = "registration_date DESC";
+            }
+        }
+
+        $community_members = $community_members->orderByRaw($sort)
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+
+
+        return $community_members;
+    }
+
+
+    public function removeCommunityLeader(Request $request, User $user)
+    {
+        $auth_user = Auth::user();
+        $auth_user = User::find($auth_user->id);
+        $response = ['success' => false];
+
+        if (!is_null($user->community_leader)) {
+
+
+
+            $position = CommunityLeaderRole::find($user->community_leader)->name;
+
+
+            $user->community_leader = NULL;
+            $user->community_leader_date = NULL;
+
+            $user->save();
+
+
+            $user->notify(new CommunityLeaderRemoved($auth_user, $user, $position));
+
+
+            $response['success'] = true;
+        }
+
+        return $response;
+    }
+
+
+
+    public function loadAllCommunityLeadersInCommunity(Request $request, InecWard $community)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+
+
+        $community_leaders = User::where('users.ward_id', $community->id)->whereRaw('users.community_leader IS NOT NULL');
+
+        $community_leaders = $community_leaders->join('community_leader_roles as a', 'users.community_leader', '=', 'a.id')->addSelect('a.name as position');
+
+
+        $community_leaders = $community_leaders->selectRaw("STR_TO_DATE(users.community_leader_date, '%Y-%m-%d %H:%i:%s') as approved_date");
+        $community_leaders = $community_leaders->selectRaw("STR_TO_DATE(users.created_at, '%Y-%m-%d %H:%i:%s') as registration_date");
+
+        $community_leaders = $community_leaders->addSelect('users.*');
+
+
+
+
+        $community_leaders = $request->has('name') ? $community_leaders->where('users.name', 'like', '%' . $request->query('name') . '%') : $community_leaders;
+        $community_leaders = $request->has('name') ? $community_leaders->where('users.user_name', 'like', '%' . $request->query('user_name') . '%') : $community_leaders;
+        $community_leaders = $request->has('email') ? $community_leaders->where('users.email', 'like', '%' . $request->query('email') . '%') : $community_leaders;
+        $community_leaders = $request->has('phone') ? $community_leaders->where('users.phone', 'like', '%' . $request->query('phone') . '%') : $community_leaders;
+        $community_leaders = $request->has('position') ? $community_leaders->where('a.name', 'like', '%' . $request->query('position') . '%') : $community_leaders;
+
+
+
+
+        $community_leaders = $request->has('approved_date') ? $community_leaders->havingRaw("STR_TO_DATE(users.community_leader_date, '%Y-%m-%d') = '" . $request->approved_date . "'") : $community_leaders;
+        $community_leaders = $request->has('registration_date') ? $community_leaders->havingRaw("STR_TO_DATE(users.created_at, '%Y-%m-%d') = '" . $request->registration_date . "'") : $community_leaders;
+
+
+        $sort = "approved_date DESC";
+
+        if ($request->has('sort')) {
+            $sort_dir = $request->query('sort');
+
+            if ($sort_dir == 'name_asc') {
+                $sort = "users.name ASC";
+            } else if ($sort_dir == 'name_desc') {
+                $sort = "users.name DESC";
+            } else if ($sort_dir == 'user_name_asc') {
+                $sort = "users.user_name ASC";
+            } else if ($sort_dir == 'user_name_desc') {
+                $sort = "users.user_name DESC";
+            } else if ($sort_dir == 'email_asc') {
+                $sort = "users.email ASC";
+            } else if ($sort_dir == 'email_desc') {
+                $sort = "users.email DESC";
+            } else if ($sort_dir == 'phone_asc') {
+                $sort = "users.phone ASC";
+            } else if ($sort_dir == 'phone_desc') {
+                $sort = "users.phone DESC";
+            } else if ($sort_dir == 'position_asc') {
+                $sort = "a.name ASC";
+            } else if ($sort_dir == 'position_desc') {
+                $sort = "a.name DESC";
+            } else if ($sort_dir == 'approved_date_asc') {
+                $sort = "approved_date ASC";
+            } else if ($sort_dir == 'approved_date_desc') {
+                $sort = "approved_date DESC";
+            } else if ($sort_dir == 'registration_date_asc') {
+                $sort = "registration_date ASC";
+            } else if ($sort_dir == 'registration_date_desc') {
+                $sort = "registration_date DESC";
+            }
+        }
+
+        $community_leaders = $community_leaders->orderByRaw($sort)
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+
+
+        return $community_leaders;
+    }
+
+    public function loadAllCommunitiesForWork(Request $request)
+    {
+
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        $page = empty($page) ? 1 : $page;
+        $length = $request->query("length");
+        $length = empty($length) ? 10 : $length;
+
+
+
+
+        // $history = $history->orderBy("id", "DESC")
+        // ->toRawSql();
+
+        // $communities = InecWard::where('inec_wards.id', '!=', 0)
+        // ->addSelect('inec_wards.*')
+        // ->filterByName($request->query('name'))
+        // ->filterByState($request->query('state'))
+        // ->filterByLga($request->query('lga'))
+        // ->filterByUsersNum($request->query('users_num'))
+        // ->filterByLastUserRegisteredDate($request->query('last_user_registered_date'))
+        // ->orderBy('inec_wards.id', 'DESC')
+        // ->paginate($length)
+        // ->withQueryString();
+
+        $communities = InecWard::where('inec_wards.id', '!=', 0);
+
+        $communities = $communities->join('inec_lgas as a', 'inec_wards.inec_lga_id', '=', 'a.id')->addSelect('a.name as lga');
+        $communities = $communities->join('inec_states as b', 'inec_wards.inec_state_id', '=', 'b.id')->addSelect('b.name as state');
+
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM users u1 WHERE u1.ward_id = inec_wards.id) as users_num");
+        $communities = $communities->selectRaw(" (SELECT created_at FROM users u2 WHERE (u2.ward_id = inec_wards.id) ORDER BY STR_TO_DATE(`created_at`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_user_registered_date");
+
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM users u3 WHERE (u3.ward_id = inec_wards.id) AND u3.community_leader IS NOT NULL ) as community_leaders_num");
+        $communities = $communities->selectRaw(" (SELECT community_leader_date FROM users u4 WHERE (u4.ward_id = inec_wards.id) AND u4.community_leader IS NOT NULL  ORDER BY STR_TO_DATE(`community_leader_date`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_community_leader_date");
+
+        $communities = $communities->selectRaw(" (SELECT COUNT(*) FROM community_head_requests c1 WHERE (c1.ward_id = inec_wards.id) ) as pending_community_leaders_num");
+        $communities = $communities->selectRaw(" (SELECT created_at FROM community_head_requests c2 WHERE (c2.ward_id = inec_wards.id)  ORDER BY STR_TO_DATE(`created_at`, '%Y-%m-%d %H:%i:%s') DESC LIMIT 1)  as last_pending_community_leader_date");
+
+
+
+        $communities = $communities->addSelect('inec_wards.*');
+
+
+        $communities = $request->has('name') ? $communities->where('inec_wards.name', 'like', '%' . $request->query('name') . '%') : $communities;
+        $communities = $request->has('lga') ? $communities->where('a.name', 'like', '%' . $request->query('lga') . '%') : $communities;
+        $communities = $request->has('state') ? $communities->where('b.name', 'like', '%' . $request->query('state') . '%') : $communities;
+
+
+        $communities = $request->has('users_num') ? $communities->having('users_num', '=', $request->users_num) : $communities;
+        $communities = $request->has('last_user_registered_date') ? $communities->havingRaw("STR_TO_DATE(last_user_registered_date, '%Y-%m-%d') = '" . $request->last_user_registered_date . "'") : $communities;
+        $communities = $request->has('community_leaders_num') ? $communities->having('community_leaders_num', '=', $request->community_leaders_num) : $communities;
+        $communities = $request->has('last_community_leader_date') ? $communities->havingRaw("STR_TO_DATE(last_community_leader_date, '%Y-%m-%d') = '" . $request->last_community_leader_date . "'") : $communities;
+        $communities = $request->has('pending_community_leaders_num') ? $communities->having('pending_community_leaders_num', '=', $request->pending_community_leaders_num) : $communities;
+        $communities = $request->has('last_pending_community_leader_date') ? $communities->havingRaw("STR_TO_DATE(last_pending_community_leader_date, '%Y-%m-%d') = '" . $request->last_pending_community_leader_date . "'") : $communities;
+
+
+        $sort = "inec_wards.id DESC";
+
+        if ($request->has('sort')) {
+            $sort_dir = $request->query('sort');
+
+            if ($sort_dir == 'id_asc') {
+                $sort = "inec_wards.id ASC";
+            } else if ($sort_dir == 'id_desc') {
+                $sort = "inec_wards.id DESC";
+            } else if ($sort_dir == 'name_asc') {
+                $sort = "inec_wards.name ASC";
+            } else if ($sort_dir == 'name_desc') {
+                $sort = "inec_wards.name DESC";
+            } else if ($sort_dir == 'lga_asc') {
+                $sort = "a.name ASC";
+            } else if ($sort_dir == 'lga_desc') {
+                $sort = "a.name DESC";
+            } else if ($sort_dir == 'state_asc') {
+                $sort = "b.name ASC";
+            } else if ($sort_dir == 'state_desc') {
+                $sort = "b.name DESC";
+            } else if ($sort_dir == 'users_num_asc') {
+                $sort = "users_num ASC";
+            } else if ($sort_dir == 'users_num_desc') {
+                $sort = "users_num DESC";
+            } else if ($sort_dir == 'last_user_registered_date_asc') {
+                $sort = "last_user_registered_date ASC";
+            } else if ($sort_dir == 'last_user_registered_date_desc') {
+                $sort = "last_user_registered_date DESC";
+            } else if ($sort_dir == 'community_leaders_num_asc') {
+                $sort = "community_leaders_num ASC";
+            } else if ($sort_dir == 'community_leaders_num_desc') {
+                $sort = "community_leaders_num DESC";
+            } else if ($sort_dir == 'last_community_leader_date_asc') {
+                $sort = "last_community_leader_date ASC";
+            } else if ($sort_dir == 'last_community_leader_date_desc') {
+                $sort = "last_community_leader_date DESC";
+            } else if ($sort_dir == 'pending_community_leaders_num_asc') {
+                $sort = "pending_community_leaders_num ASC";
+            } else if ($sort_dir == 'pending_community_leaders_num_desc') {
+                $sort = "pending_community_leaders_num DESC";
+            } else if ($sort_dir == 'last_pending_community_leader_date_asc') {
+                $sort = "last_pending_community_leader_date ASC";
+            } else if ($sort_dir == 'last_pending_community_leader_date_desc') {
+                $sort = "last_pending_community_leader_date DESC";
+            }
+        }
+
+        $communities = $communities->orderByRaw($sort)
+            ->paginate($length)->withQueryString();
+
+
+        // $patients = $patients->orderBy("id", "DESC")
+        // ->toRawSql();
+
+
+
+
+        return $communities;
+    }
+
+    public function loadManageVtuPageHistory(Request $request)
+    {
         return redirect()->route('manage_vtu', ['param1' => 'history']);
     }
 
@@ -463,7 +1145,7 @@ class AdminController extends Controller
 
                 $current_platform = $this->functions->getVtuPlatformToUse('cable', $network);
                 $response['current_platform'] = $current_platform;
-                
+
                 $data_plan = CablePlan::where('network', $network)->get();
                 if ($data_plan->count() == 1) {
                     $data_plan = $data_plan[0];
@@ -515,14 +1197,14 @@ class AdminController extends Controller
         $length = $request->query("length");
         $length = empty($length) ? 10 : $length;
 
-        
+
 
         $history = VtuTransaction::where('vtu_transactions.id', '!=', 0);
 
 
         $history = $history->join('users as j', 'vtu_transactions.user_id', '=', 'j.id')->addSelect('j.name')->addSelect('j.user_name')->addSelect('j.email');
 
-        
+
 
         $history = $history->addSelect('vtu_transactions.*');
 
@@ -534,7 +1216,7 @@ class AdminController extends Controller
         $history = $request->has('number') ? $history->where('number', 'like', '%' . $request->query('number') . '%') : $history;
         $history = $request->has('amount') ? $history->where('amount', 'like', '%' . $request->query('amount') . '%') : $history;
 
-        
+
 
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('vtu_transactions.date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
@@ -543,7 +1225,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("vtu_transactions.id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
         // $history = $history->orderBy("id", "DESC")
@@ -567,7 +1249,7 @@ class AdminController extends Controller
 
         $this->functions->setCurrentPlatform('', 'electricity', $platform);
         $response['success'] = true;
-        
+
 
         return back()->with('data', $response);
     }
@@ -584,7 +1266,6 @@ class AdminController extends Controller
                 $current_platform = $this->functions->getVtuPlatformToUse('', 'electricity');
                 $response['current_platform'] = $current_platform;
                 $response['success'] = true;
-                
             }
         }
 
@@ -601,7 +1282,7 @@ class AdminController extends Controller
             'network' => ['required', Rule::in($this->networks)],
             'platform' => ['required', Rule::in($this->airtime_platforms[strtolower($request->network)])],
             'discount' => 'nullable|numeric|max:100',
-            
+
         ]);
 
         $platform = $request->platform;
@@ -635,14 +1316,14 @@ class AdminController extends Controller
 
                 $current_platform = $this->functions->getVtuPlatformToUse('airtime', $network);
                 $response['current_platform'] = $current_platform;
-               
+
                 $airtime_plan = AirtimeTopup::where('network', $network)->get();
                 if ($airtime_plan->count() == 1) {
                     $airtime_plan = $airtime_plan[0];
-                    
+
                     $discount = $airtime_plan->discount;
 
-                    
+
                     $response['discount'] = $discount;
                     $response['success'] = true;
                 }
@@ -652,11 +1333,11 @@ class AdminController extends Controller
         return $response;
     }
 
-    
+
     public function saveDataPlansSettings(Request $request, User $user)
     {
         $response = ['success' => false];
-        
+
 
         $request->validate([
             'network' => ['required', Rule::in($this->networks)],
@@ -675,27 +1356,27 @@ class AdminController extends Controller
         if ($data_plan->count() == 1) {
             $data_plan = DataPlan::find($data_plan[0]->id);
 
-            
+
 
             $data_plan->modify_prices = $request->modify_prices_status;
             $data_plan->price_alteration_option = $request->price_alteration_option;
             $data_plan->percentage = $request->percentage;
             $data_plan->added_amount = $request->added_amount;
 
-            if($data_plan->modify_prices == 'yes' && $data_plan->price_alteration_option == 'direct'){
+            if ($data_plan->modify_prices == 'yes' && $data_plan->price_alteration_option == 'direct') {
                 $prices_details = $data_plan->details;
 
-                if($request->has('plans')){
+                if ($request->has('plans')) {
                     $plans = $request->plans;
-                    if(count($plans) > 0){
+                    if (count($plans) > 0) {
                         $plans_arr = [];
-                        foreach($plans as $plan){
+                        foreach ($plans as $plan) {
                             $name = $plan['name'];
                             $product_id = $plan['product_id'];
                             $old_price = $plan['old_price'];
                             $new_price = (float) $plan['new_price'];
 
-                            
+
                             // $preset_plans = json_decode(json_encode($preset_plans));
                             // dd($preset_plans);
 
@@ -704,10 +1385,9 @@ class AdminController extends Controller
                                 'product_id' => $product_id,
                                 'price' => $new_price,
                             ];
-                            
                         }
 
-                        
+
                         $preset_plans = json_decode($prices_details);
                         foreach ($preset_plans as $plan) {
                             if (isset($plan->$platform)) {
@@ -728,27 +1408,27 @@ class AdminController extends Controller
 
         return back()->with('data', $response);
     }
-    
+
     public function loadDataPlanDetailsByNetwork(Request $request, User $user)
     {
         $response = ['success' => false, 'current_platform' => '', 'gsubz' => false, 'modify_prices_status' => false, 'percentage' => 0, 'added_amount' => 0, 'plans' => []];
 
-        if($request->has('network') && $request->has('platform')){
+        if ($request->has('network') && $request->has('platform')) {
             $network = $request->network;
             $platform = $request->platform;
 
-            if(in_array($network, $this->networks) && in_array($platform, $this->data_platforms[$network])){
+            if (in_array($network, $this->networks) && in_array($platform, $this->data_platforms[$network])) {
 
                 $current_platform = $this->functions->getVtuPlatformToUse('data', $network);
                 $response['current_platform'] = $current_platform;
-                if(substr($platform, 0, 5) == "gsubz"){
+                if (substr($platform, 0, 5) == "gsubz") {
                     $response['gsubz'] = true;
 
                     // $platform = substr($platform, 6);
                 }
 
                 $data_plan = DataPlan::where('network', $network)->get();
-                if($data_plan->count() == 1){
+                if ($data_plan->count() == 1) {
                     $data_plan = $data_plan[0];
                     $modify_prices_status = $request->has('temp') ? $request->modify_prices_status : $data_plan->modify_prices;
                     $price_alteration_option = $request->has('temp') ? $request->price_alteration_option : $data_plan->price_alteration_option;
@@ -760,11 +1440,11 @@ class AdminController extends Controller
                     $response['percentage'] = $percentage;
                     $response['added_amount'] = $added_amount;
 
-                    if($modify_prices_status == "yes"){
+                    if ($modify_prices_status == "yes") {
                         //Get plans for this particular platform with old price and new price depending on price alteration option
 
-                        
-                        $options = (Object) [
+
+                        $options = (object) [
                             'price_alteration_option' => $price_alteration_option,
                             'percentage' => $percentage,
                             'added_amount' => $added_amount,
@@ -773,15 +1453,13 @@ class AdminController extends Controller
                         $platform_to_use = $request->has('platform_changed') ? $platform : $current_platform;
                         $plans = $this->functions->getDataPlansForEditing($network, $platform_to_use, $options);
 
-                        if(count($plans) > 0){
-                            
+                        if (count($plans) > 0) {
+
                             $response['plans'] = $plans;
                         }
                     }
                     $response['success'] = true;
-                    
                 }
-                
             }
         }
 
@@ -812,7 +1490,7 @@ class AdminController extends Controller
 
         $history = $history->paginate($length);
 
-        
+
         // return $history;
 
 
@@ -834,18 +1512,19 @@ class AdminController extends Controller
         return Inertia::render("Admin/UsersEarningsWallet", $props);
     }
 
-    public function loadAdminGoEasySavingsPage(Request $request){
+    public function loadAdminGoEasySavingsPage(Request $request)
+    {
 
         $total_amount_of_current_savings = 0;
         $total_amount_disbursed = 0;
         $total_amount_saved_so_far = 0;
         $savings = new EasySavings;
-        $current_savings = $savings->where('disbursed', 0)->select('id','total_amount_debited_so_far')->get();
+        $current_savings = $savings->where('disbursed', 0)->select('id', 'total_amount_debited_so_far')->get();
         $disbursed_savings = $savings->where('disbursed', 1)->select('id', 'amount_disbursed')->get();
-        $total_savings = $savings->where('id','!=', 0)->select('id', 'total_amount_debited_so_far')->get();
+        $total_savings = $savings->where('id', '!=', 0)->select('id', 'total_amount_debited_so_far')->get();
         $props['figures']['number_of_current_savings'] = $current_savings->count();
-        if($current_savings->count() > 0){
-            foreach($current_savings as $row){
+        if ($current_savings->count() > 0) {
+            foreach ($current_savings as $row) {
                 $total_amount_of_current_savings += $row->total_amount_debited_so_far;
             }
         }
@@ -866,13 +1545,14 @@ class AdminController extends Controller
             }
         }
         $props['figures']['total_amount_saved_so_far'] = $total_amount_saved_so_far;
-        
+
         $props['user'] = Auth::user();
         // return $props;
-        return Inertia::render('Admin/GoeasyPage',$props);
+        return Inertia::render('Admin/GoeasyPage', $props);
     }
 
-    public function showUsersSavingsAutoWithdHistoryPage(Request $request, User $user){
+    public function showUsersSavingsAutoWithdHistoryPage(Request $request, User $user)
+    {
         $props['user'] = $user;
 
         $page = $request->query('page');
@@ -917,7 +1597,8 @@ class AdminController extends Controller
         return Inertia::render('Admin/UsersSavingsWithdrawalHistory', $props);
     }
 
-    public function showUsersSavingsHistoryPage(Request $request, User $user){
+    public function showUsersSavingsHistoryPage(Request $request, User $user)
+    {
         $props['user'] = $user;
 
         $user_id = $user->id;
@@ -987,10 +1668,11 @@ class AdminController extends Controller
         return Inertia::render('Admin/UsersSavingsHistory', $props);
     }
 
-    public function showSavingsDebitHistoryPage(Request $request, User $user, EasySavings $easySaving){
+    public function showSavingsDebitHistoryPage(Request $request, User $user, EasySavings $easySaving)
+    {
         $props['user'] = $user;
         $saving_id = $easySaving->id;
-        
+
         $page = $request->query('page');
 
         $page = empty($page) ? 1 : $page;
@@ -1036,7 +1718,8 @@ class AdminController extends Controller
         }
     }
 
-    public function showUsersSavingDetailsPage(Request $request, User $user, EasySavings $easySaving){
+    public function showUsersSavingDetailsPage(Request $request, User $user, EasySavings $easySaving)
+    {
         $props['user'] = $user;
 
         $saving_id = $easySaving->id;
@@ -1068,16 +1751,17 @@ class AdminController extends Controller
         }
     }
 
-    public function showUsersSavingsMainPage(Request $request,User $user){
+    public function showUsersSavingsMainPage(Request $request, User $user)
+    {
         $props['user'] = $user;
-        
+
         $props['has_current_savings'] = $this->functions->checkIfUserHasAnyCurrentSavingsOn($user->id);
         $saving = EasySavings::where('user_id', $user->id)->where('disbursed', 0)->first();
         $props['saving_id'] = is_null($saving) ? 0 : $saving->id;
 
         return Inertia::render('Admin/UsersSavingsMainPage', $props);
     }
-    
+
     public function loadUsersEasyLoanHistoryPage(Request $request, User $user)
     {
         $props['user'] = $user;
@@ -1087,7 +1771,7 @@ class AdminController extends Controller
 
         $length = empty($length) ? 10 : $length;
 
-        
+
 
 
         $j = 0;
@@ -1105,7 +1789,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
         if ($history->count() > 0) {
             foreach ($history as $row) {
@@ -1185,7 +1869,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1216,12 +1900,12 @@ class AdminController extends Controller
 
         $length = empty($length) ? 10 : $length;
 
-        $history = MlmDb::where('mlm_db.id','!=', 1);
+        $history = MlmDb::where('mlm_db.id', '!=', 1);
 
 
         $history = $history->join('users', 'mlm_db.user_id', '=', 'users.id')->addSelect('users.name as name')->addSelect('users.email as email');
 
-        
+
 
         $history = $history->addSelect('mlm_db.*');
 
@@ -1253,7 +1937,7 @@ class AdminController extends Controller
 
                 $id = $row->id;
                 $user_id = $row->user_id;
-                
+
 
                 $date_created = $row->date_created;
                 $time_created = $row->time_created;
@@ -1262,12 +1946,12 @@ class AdminController extends Controller
                 $under = $row->under;
                 $sponsor = $row->sponsor;
                 $positioning = $row->positioning;
-                
+
                 $row->level_str = number_format($level);
 
-                
+
                 $placement_user_id = $this->functions->getMlmDbParamById("user_id", $under);
-                
+
                 $row->placement_name = $this->functions->getUserParamById("name", $placement_user_id);
                 $row->placement_email = $this->functions->getUserParamById("email", $placement_user_id);
                 $row->placement_name = $row->placement_name . " (" . $positioning . ")";
@@ -1278,7 +1962,7 @@ class AdminController extends Controller
 
                 $row->sponsor_name = $this->functions->getUserParamById("name", $sponsor_user_id);
                 $row->sponsor_email = $this->functions->getUserParamById("email", $sponsor_user_id);
-                
+
                 // $row->index = $index;
             }
         }
@@ -1303,7 +1987,7 @@ class AdminController extends Controller
         $props['total_levels'] = number_format($this->functions->getNumberOfLevelsInMlmSystem());
 
 
-        
+
         return Inertia::render('Admin/DownlineMembers', $props);
     }
 
@@ -1342,7 +2026,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1395,7 +2079,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1431,7 +2115,7 @@ class AdminController extends Controller
 
         $length = empty($length) ? 10 : $length;
 
-        $history = AdminFundUsersHistory::where('user_id','!=','0');
+        $history = AdminFundUsersHistory::where('user_id', '!=', '0');
 
 
         $history = $history->join('users', 'admin_fund_users_history.user_id', '=', 'users.id')->addSelect('users.name as name')->addSelect('users.email as email');
@@ -1441,7 +2125,7 @@ class AdminController extends Controller
         $history = $request->query('email') ? $history->where('users.email', 'like', '%' . $request->query('email') . '%') : $history;
 
         $history = $request->query('amount') ? $history->where('admin_fund_users_history.amount', 'like', '%' . $request->query('amount') . '%') : $history;
-        
+
 
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('admin_fund_users_history.date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
@@ -1450,14 +2134,14 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
 
         // return $history;
 
-        
+
 
         $props['history'] = $history;
         $props['length'] = $length;
@@ -1486,7 +2170,7 @@ class AdminController extends Controller
 
         $length = empty($length) ? 10 : $length;
 
-        $history = AccountCreditHistory::where('user_id','!=','0');
+        $history = AccountCreditHistory::where('user_id', '!=', '0');
 
 
         $history = $history->join('users', 'account_credit_history.user_id', '=', 'users.id')->addSelect('users.name as name')->addSelect('users.email as email');
@@ -1506,14 +2190,14 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
 
         // return $history;
 
-        
+
 
         $props['history'] = $history;
         $props['length'] = $length;
@@ -1575,7 +2259,7 @@ class AdminController extends Controller
 
 
         $requests = $requests->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1640,7 +2324,7 @@ class AdminController extends Controller
 
 
         $requests = $requests->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1705,7 +2389,7 @@ class AdminController extends Controller
 
 
         $requests = $requests->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -1735,7 +2419,7 @@ class AdminController extends Controller
     {
         $date = date("j M Y");
         $time = date("h:i:sa");
-        
+
         $response_arr = ['success' => false];
         if ($request->id) {
             $id = $request->id;
@@ -1747,21 +2431,20 @@ class AdminController extends Controller
 
             $combo_recharge->save();
 
-            
+
             $response_arr['success'] = true;
-            
         }
 
 
         return back()->with('data', $response_arr);
-    } 
+    }
 
     public function loadAirtimeComboRequestsPage(Request $request)
     {
         $user = Auth::user();
         $props['user'] = $user;
 
-        
+
 
         $page = empty($page) ? 1 : $page;
         $length = $request->query("length");
@@ -1776,7 +2459,7 @@ class AdminController extends Controller
 
         $requests = $requests->join('users', 'combo_recharge_vtu.user_id', '=', 'users.id')->addSelect('users.name as name')->addSelect('users.email as email');
 
-       
+
 
         $requests = $requests->addSelect('combo_recharge_vtu.*');
 
@@ -1796,17 +2479,17 @@ class AdminController extends Controller
 
 
         $requests = $requests->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
         $props['requests'] = $requests;
         $props['length'] = $length;
-        
+
         $props['name'] = $request->query('name') ? $request->query('name') : NULL;
-        
+
         $props['email'] = $request->query('email') ? $request->query('email') : NULL;
-        
+
 
         $props['amount'] = $request->query('amount') ? $request->query('amount') : NULL;
         $props['number'] = $request->query('number') ? $request->query('number') : NULL;
@@ -1824,13 +2507,13 @@ class AdminController extends Controller
     {
         $date = date("j M Y");
         $time = date("h:i:sa");
-        
+
 
         $response_arr = ['success' => false];
         if ($request->id) {
             $id = $request->id;
 
-            
+
             $withdrawal_request = WithdrawalRequest::find($id);
 
             $withdrawal_request->dismissed = 1;
@@ -1842,23 +2525,22 @@ class AdminController extends Controller
             if ($this->functions->creditUser($withdrawal_request->user_id, $amount, $summary)) {
                 $response_arr['success'] = true;
             }
-            
         }
 
         return back()->with('data', $response_arr);
-    } 
+    }
 
     public function verifyAccountCreditWithdrawal(Request $request)
     {
         $date = date("j M Y");
         $time = date("h:i:sa");
-        
+
 
         $response_arr = ['success' => false];
 
         if ($request->id) {
             $id = $request->id;
-            
+
             $withdrawal_request = WithdrawalRequest::find($id);
             $user_id = $withdrawal_request->user_id;
 
@@ -1895,17 +2577,16 @@ class AdminController extends Controller
                 $this->functions->creditUser($placements_user_id, $income, $summary);
             }
 
-            
+
             if ($this->functions->addWithrawalHistory($withdrawal_request->user_id, $withdrawal_request->amount)) {
                 $response_arr['success'] = true;
             }
-            
         }
 
 
         return back()->with('data', $response_arr);
-    } 
-    
+    }
+
 
     public function loadAccountWithdrawalRequestsPage(Request $request)
     {
@@ -1923,19 +2604,19 @@ class AdminController extends Controller
 
 
         $j = 0;
-        
+
         $requests = WithdrawalRequest::where(function ($query) use ($role_prop) {
 
             if ($role_prop == "dismissed") {
                 $query->where('debited', 0)
-                ->where('dismissed', 1);
+                    ->where('dismissed', 1);
             } else if ($role_prop == "debited") {
                 $query->where('debited', 1)
-                ->where('dismissed', 0);
+                    ->where('dismissed', 0);
             } else if ($role_prop == "pending") {
                 $query->where('debited', 0)
-                ->where('dismissed', 0);
-            }else{
+                    ->where('dismissed', 0);
+            } else {
                 $query->where('debited', 0)
                     ->where('dismissed', 0);
             }
@@ -1971,7 +2652,7 @@ class AdminController extends Controller
 
 
         $requests = $requests->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
 
 
@@ -2021,7 +2702,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
         $props['history'] = $history;
         $props['length'] = $length;
@@ -2052,7 +2733,7 @@ class AdminController extends Controller
         $history = $user->adminCreditHistory();
 
         $history = $request->query('amount') ? $history->where('amount', 'like', '%' . $request->query('amount') . '%') : $history;
-       
+
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
         $history = !empty($request->query('start_date')) && !empty($request->query('end_date')) != "" ? $history->whereBetween('created_at', [$request->query('start_date'), $request->query('end_date')]) : $history;
@@ -2060,7 +2741,7 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
         $props['history'] = $history;
         $props['length'] = $length;
@@ -2128,10 +2809,10 @@ class AdminController extends Controller
         $history = $request->query('recepient_email') ? $history->where('recepient.email', 'like', '%' . $request->query('recepient_email') . '%') : $history;
         $history = $request->query('recepient_country_name') ? $history->where('recepient_country.name', 'like', '%' . $request->query('recepient_country_name') . '%') : $history;
 
-        
+
 
         $history = $request->query('amount') ? $history->where('transfer_funds_history.amount', 'like', '%' . $request->query('amount') . '%') : $history;
-        
+
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('transfer_funds_history.date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
         $history = !empty($request->query('start_date')) && !empty($request->query('end_date')) != "" ? $history->whereBetween('transfer_funds_history.created_at', [$request->query('start_date'), $request->query('end_date')]) : $history;
@@ -2139,9 +2820,9 @@ class AdminController extends Controller
 
 
         $history = $history->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
-        
+
 
         $props['history'] = $history;
         $props['length'] = $length;
@@ -2155,9 +2836,9 @@ class AdminController extends Controller
         $props['recepient_phone'] = $request->query('recepient_phone') ? $request->query('recepient_phone') : NULL;
         $props['recepient_email'] = $request->query('recepient_email') ? $request->query('recepient_email') : NULL;
         $props['recepient_country_name'] = $request->query('recepient_country_name') ? $request->query('recepient_country_name') : NULL;
-        
+
         $props['amount'] = $request->query('amount') ? $request->query('amount') : NULL;
-        
+
         $props['date'] = $request->query('date') ? $request->query('date') : NULL;
         $props['start_date'] = $request->query('start_date') ? $request->query('start_date') : NULL;
         $props['end_date'] = $request->query('end_date') ? $request->query('end_date') : NULL;
@@ -2169,8 +2850,9 @@ class AdminController extends Controller
         return Inertia::render("Admin/UsersTransferHistory", $props);
     }
 
-    public function loadUsersAccountStatementPage(Request $request, User $user){
-        
+    public function loadUsersAccountStatementPage(Request $request, User $user)
+    {
+
         $props['user'] = $user;
 
         $page = empty($page) ? 1 : $page;
@@ -2192,7 +2874,7 @@ class AdminController extends Controller
 
 
         $wallet_statement = $wallet_statement->orderBy("id", "DESC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
         $props['wallet_statement'] = $wallet_statement;
         $props['length'] = $length;
@@ -2210,7 +2892,8 @@ class AdminController extends Controller
         return Inertia::render("Admin/UsersAccountStatement", $props);
     }
 
-    public function loadUsersAccountWithdrawalHistoryPage(Request $request, User $user){
+    public function loadUsersAccountWithdrawalHistoryPage(Request $request, User $user)
+    {
         $props['user'] = $user;
 
         $page = empty($page) ? 1 : $page;
@@ -2223,7 +2906,7 @@ class AdminController extends Controller
 
 
         $history = $request->query('amount') ? $history->where('amount', 'like', '%' . $request->query('amount') . '%') : $history;
-        
+
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
         $history = !empty($request->query('start_date')) && !empty($request->query('end_date')) != "" ? $history->whereBetween('created_at', [$request->query('start_date'), $request->query('end_date')]) : $history;
@@ -2251,8 +2934,9 @@ class AdminController extends Controller
 
         return Inertia::render("Admin/UsersWithdrawalHistory", $props);
     }
-    
-    public function loadUsersAccountCreditHistoryPage(Request $request, User $user){
+
+    public function loadUsersAccountCreditHistoryPage(Request $request, User $user)
+    {
         $props['user'] = $user;
 
         $page = empty($page) ? 1 : $page;
@@ -2267,15 +2951,15 @@ class AdminController extends Controller
         $history = $request->query('amount') ? $history->where('amount', 'like', '%' . $request->query('amount') . '%') : $history;
         $history = $request->query('payment_option') ? $history->where('payment_option', 'like', '%' . $request->query('payment_option') . '%') : $history;
         $history = $request->query('reference') ? $history->where('reference', 'like', '%' . $request->query('reference') . '%') : $history;
-        
+
         $history = !empty($request->query('date')) && $request->query('date') != "" ? $history->where('date', 'like', date("j M Y", strtotime($request->query('date')))  . '%') : $history;
 
         $history = !empty($request->query('start_date')) && !empty($request->query('end_date')) != "" ? $history->whereBetween('created_at', [$request->query('start_date'), $request->query('end_date')]) : $history;
 
 
 
-        $history = $history->orderBy("id","DESC")
-                    ->paginate($length)->withQueryString();
+        $history = $history->orderBy("id", "DESC")
+            ->paginate($length)->withQueryString();
 
 
 
@@ -2286,7 +2970,7 @@ class AdminController extends Controller
         $props['history'] = $history;
         $props['length'] = $length;
         $props['amount'] = $request->query('amount') ? $request->query('amount') : NULL;
-        
+
         $props['payment_option'] = $request->query('payment_option') ? $request->query('payment_option') : NULL;
         $props['reference'] = $request->query('reference') ? $request->query('reference') : NULL;
         $props['date'] = $request->query('date') ? $request->query('date') : NULL;
@@ -2316,18 +3000,18 @@ class AdminController extends Controller
         // $wallet_balance = $total_income - $withdrawn;
 
         // if($amount <= $wallet_balance){
-        
+
         $summary = "Admin Debit Of " . $amount;
         if ($this->functions->debitUser($user->id, $amount, $summary)) {
             $this->functions->addAdminDebitHistory($user->id, $amount, $date, $time);
             $response_arr['success'] = true;
-            
         }
 
         return back()->with('data', $response_arr);
     }
 
-    public function processCreditUser(Request $request, User $user){
+    public function processCreditUser(Request $request, User $user)
+    {
         $date = date("j M Y");
         $time = date("h:i:sa");
         $response_arr = ['success' => false];
@@ -2350,17 +3034,19 @@ class AdminController extends Controller
         return back()->with('data', $response_arr);
     }
 
-    public function getUserData(Request $request, User $user){
-        
+    public function getUserData(Request $request, User $user)
+    {
+
         $user->country_name = Country::find($user->country_id)->name;
         $response_arr = ['success' => true, 'user' => $user];
         return $response_arr;
         // return back()->with('data', $response_arr);
     }
-        
 
-    public function processEditUsersProfile(Request $request, User $user){
-        
+
+    public function processEditUsersProfile(Request $request, User $user)
+    {
+
         $response_arr = ['success' => false, 'email_changed' => false];
 
         $rules = [
@@ -2382,7 +3068,7 @@ class AdminController extends Controller
         $user->name = $request->name;
         $user->phone = $request->phone;
         $user->address = $request->address;
-        
+
 
         if ($user->email != $request->email) {
             $response_arr['email_changed'] = true;
@@ -2396,15 +3082,16 @@ class AdminController extends Controller
         return back()->with('data', $response_arr);
     }
 
-    public function loadAdminEditUserProfilePage(Request $request, User $user){
-        
+    public function loadAdminEditUserProfilePage(Request $request, User $user)
+    {
+
         $props = [];
         $real_countries = [];
-        
+
         $countries = Country::where('id', '!=', '0')->orderBy("name", "ASC")->get();
 
         $i = -1;
-        foreach($countries as $country){
+        foreach ($countries as $country) {
             $i++;
             $id = $country->id;
             $name = $country->name;
@@ -2415,21 +3102,22 @@ class AdminController extends Controller
                 'label' => $name . ' (' . $phone_code . ')',
             ];
 
-            if($id == $user->country_id){
+            if ($id == $user->country_id) {
                 $props['selected_country'] = $i;
             }
         }
-       
+
         $props['user'] = $user;
 
         $props['countries'] = $real_countries;
-        
-        return Inertia::render('Admin/EditUserProfile',$props);
+
+        return Inertia::render('Admin/EditUserProfile', $props);
     }
 
-    public function loadMembersListPage(Request $request){
+    public function loadMembersListPage(Request $request)
+    {
         $user = Auth::user();
-        
+
         $props['user'] = $user;
 
         $page = empty($page) ? 1 : $page;
@@ -2439,14 +3127,14 @@ class AdminController extends Controller
 
 
         $j = 0;
-        $users = User::where('is_admin',0);
+        $users = User::where('is_admin', 0);
 
         $users = $users->join('countries', 'users.country_id', '=', 'countries.id')->addSelect('countries.name as country_name');
         $users = $users->addSelect('users.*');
 
         $users = $request->query('name') ? $users->where('users.name', 'like', '%' . $request->query('name') . '%') : $users;
         $users = $request->query('user_name') ? $users->where('users.user_name', 'like', '%' . $request->query('user_name') . '%') : $users;
-        
+
         $users = $request->query('country') ? $users->where('users.country_id', $request->query('country')['id']) : $users;
         $users = $request->query('phone') ? $users->where('users.phone', 'like', '%' . $request->query('phone') . '%') : $users;
         $users = $request->query('email') ? $users->where('users.email', 'like', '%' . $request->query('email') . '%') : $users;
@@ -2457,16 +3145,16 @@ class AdminController extends Controller
 
 
         $users = $users->orderBy("name", "ASC")
-        ->paginate($length)->withQueryString();
+            ->paginate($length)->withQueryString();
 
-        
+
 
 
         // return $users;
 
-        
+
         $real_countries = [];
-        
+
         $countries = Country::where('id', '!=', '0')->orderBy("name", "ASC")->get();
 
         $i = -1;
@@ -2486,14 +3174,14 @@ class AdminController extends Controller
                 $props['selected_country'] = $i;
             }
         }
-        
+
 
         $props['countries'] = $real_countries;
         $props['users'] = $users;
         $props['length'] = $length;
         $props['name'] = $request->query('name') ? $request->query('name') : NULL;
         $props['user_name'] = $request->query('user_name') ? $request->query('user_name') : NULL;
-        
+
         $props['country'] = $request->query('country') ? $request->query('country') : $real_countries[$props['selected_country']];
         $props['phone'] = $request->query('phone') ? $request->query('phone') : NULL;
         $props['email'] = $request->query('email') ? $request->query('email') : NULL;

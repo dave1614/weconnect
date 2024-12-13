@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -32,7 +34,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => !is_null($request->user()) ? User::find($request->user()->id) : null,
             ],
             'flash' => function () use ($request) {
                 return [
@@ -40,6 +42,27 @@ class HandleInertiaRequests extends Middleware
                     'error' => $request->session()->get('error'),
                     'data' => $request->session()->get('data'),
                 ];
+            },
+            'notifications_num' => function () use ($request) {
+                return $request->user() ? $request->user()->notifications()->get()->count()  : null;
+            },
+            'notifications' => function () use ($request) {
+
+
+                if($request->user()){
+                    $notifications = $request->user()->notifications()->limit(25)->get();
+                    if ($notifications->count() > 0) {
+                        foreach ($notifications as $row) {
+                            $date = date('j M Y', strtotime($row->created_at));
+                            $time = date('h:i:s a', strtotime($row->created_at));
+
+                            $row->social_time = $row->created_at->diffForHumans(now(), CarbonInterface::DIFF_ABSOLUTE, true);
+                        }
+                    }
+                    return $notifications;
+                }else{
+                    return null;
+                }
             },
         ];
     }

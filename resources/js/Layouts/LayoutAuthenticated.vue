@@ -2,7 +2,7 @@
 import { mdiForwardburger, mdiBackburger, mdiMenu } from "@mdi/js";
 // import { useRouter } from "vue-router";
 // //import { Inertia } from '@inertiajs/inertia'
-import menuAside from "@/menuAside.js"; 
+import menuAside from "@/menuAside.js";
 import menuAsideAdmin from "@/menuAsideAdmin.js";
 import menuNavBar from "@/menuNavBar.js";
 import { useMainStore } from "@/Stores/main.js";
@@ -16,6 +16,8 @@ import NavBarItemPlain from "@/Components/NavBarItemPlain.vue";
 import AsideMenu from "@/Components/AsideMenu.vue";
 import FooterBar from "@/Components/FooterBar.vue";
 import { ref } from 'vue';
+
+import Toast from '@/Components/Toast.vue'
 
 useMainStore().setUser({
   name: "John Doe",
@@ -102,13 +104,14 @@ const menuClick = (event, item) => {
         >
           <BaseIcon :path="mdiMenu" size="24" />
         </NavBarItemPlain>
-        
+
       </NavBar>
       <AsideMenu :menu="is_admin ? menuAsideAdmin : menuAside" @menu-click="menuClick" />
       <slot />
       <FooterBar>
-        
+
       </FooterBar>
     </div>
   </div>
+  <Toast />
 </template>

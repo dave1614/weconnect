@@ -1,6 +1,7 @@
 <script setup>
 import { useForm, usePage, Head, Link, router } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
+import { useMainStore } from '@/Stores/main.js'
 import { mdiAccount, mdiEmail, mdiFormTextboxPassword } from '@mdi/js'
 import LayoutGuest from '@/Layouts/LayoutGuest.vue'
 import SectionFullScreen from '@/Components/SectionFullScreen.vue'
@@ -22,6 +23,7 @@ import PatientIcon from '@/Icons/patient_icon.svg'
 import LoginInput from '@/Components/LoginInput.vue'
 import FormLoaderDark from '@/Loaders/form_loader_dark.gif'
 import FormLoaderLight from '@/Loaders/form_loader_light.gif'
+import Loader from '@/Loaders/loader.gif'
 import FlashMessages from '@/Components/FlashMessages.vue'
 
 import SecondLoginImage from '@/Images/second_login.jpg'
@@ -30,13 +32,19 @@ const props = defineProps({
   props_states: {
     type: Array,
   },
-  props_cities: {
+  props_lgas: {
+    type: Array,
+  },
+  props_wards: {
     type: Array,
   },
   state: {
     type: Number
   },
-  city: {
+  lga: {
+    type: Number
+  },
+  ward: {
     type: Number
   },
 });
@@ -44,28 +52,67 @@ const props = defineProps({
 
 
 const page = usePage()
+
+const mainStore = useMainStore()
 const states = ref(props.props_states);
-const cities = ref(props.props_cities);
+const lgas = ref(props.props_lgas);
+const wards = ref(props.props_wards);
 
 console.log(states.value)
-console.log(cities.value)
+console.log(lgas.value)
+console.log(wards.value)
 const hasTermsAndPrivacyPolicyFeature = computed(() => page.props.jetstream?.hasTermsAndPrivacyPolicyFeature)
 
 
 
 const login_btn_hovered = ref(false);
 
+const loading_loca_details = ref(false);
+
 const form = useForm({
   name: null,
   user_name: null,
   email: null,
   state: props.state,
-  city: props.city,
+  lga: props.lga,
+  ward: props.ward,
   // country: 1,
   phone: null,
   password: null,
   password_confirmation: null,
 })
+
+
+const lgaSelectFormClasses = computed(() => {
+  let classes = '';
+  if(loading_loca_details.value) {
+    classes += 'opacity-40 pointer-events-none '
+  }
+
+  if(form.errors.lga){
+    classes += 'login-input-error '
+  }else{
+    classes += 'login-input '
+  }
+
+  return classes;
+});
+
+const wardSelectFormClasses = computed(() => {
+  let classes = '';
+  if(loading_loca_details.value) {
+    classes += 'opacity-40 pointer-events-none '
+  }
+
+  if(form.errors.ward){
+    classes += 'login-input-error '
+  }else{
+    classes += 'login-input '
+  }
+
+  return classes;
+});
+
 
 
 const submit = () => {
@@ -99,12 +146,121 @@ const submit = () => {
 }
 
 
+const loadNewLgas = async () => {
+  try {
+    if(loading_loca_details.value){
+      return
+    }
+
+    var state_id = form.state;
+    loading_loca_details.value = true;
+
+    let queryRoute = route('location.get_new_lgas_and_wards', state_id);
+
+    const response = await axios.post(queryRoute, {show_records: true});
+    console.log(response)
+    loading_loca_details.value = false;
+
+    if (response.data.lgas.length > 0 && response.data.wards.length > 0) {
+      lgas.value = response.data.lgas;
+      form.lga = lgas.value[0].id;
+      wards.value = response.data.wards;
+      form.ward = wards.value[0].id;
+
+      // form.city = lgas.value[0];
+
+    } else {
+      mainStore.toast = 'Something went wrong'
+    }
+  } catch (error) {
+
+    loading_loca_details.value = false;
+    if (error.response) {
+      // Request made but the server responded with an error
+      var status = error.response.status;
+      if (status == 419) {
+        document.location.reload()
+      }
+
+    } else if (error.request) {
+      // Request made but no response is received from the server.
+    } else {
+      // Error occured while setting up the request
+    }
+
+    mainStore.toast = 'Something went wrong'
+    console.log('Something went wrong' + error)
+
+    // Swal.fire({
+    //   title: 'Ooops!',
+    //   html: 'Something went wrong',
+    //   icon: 'error',
+
+
+    // });
+  }
+}
+
+const loadNewWards = async () => {
+  try {
+    if(loading_loca_details.value){
+      return
+    }
+
+    var lga_id = form.lga;
+    loading_loca_details.value = true;
+
+    let queryRoute = route('location.get_new_wards', lga_id);
+
+    const response = await axios.post(queryRoute, {show_records: true});
+    console.log(response)
+    loading_loca_details.value = false;
+
+    if (response.data.wards.length > 0) {
+
+      wards.value = response.data.wards;
+      form.ward = wards.value[0].id;
+
+      // form.city = lgas.value[0];
+
+    } else {
+      mainStore.toast = 'Something went wrong'
+    }
+  } catch (error) {
+
+    loading_loca_details.value = false;
+    if (error.response) {
+      // Request made but the server responded with an error
+      var status = error.response.status;
+      if (status == 419) {
+        document.location.reload()
+      }
+
+    } else if (error.request) {
+      // Request made but no response is received from the server.
+    } else {
+      // Error occured while setting up the request
+    }
+
+    mainStore.toast = 'Something went wrong'
+    console.log('Something went wrong' + error)
+
+    // Swal.fire({
+    //   title: 'Ooops!',
+    //   html: 'Something went wrong',
+    //   icon: 'error',
+
+
+    // });
+  }
+}
+
 </script>
 
 <template>
   <LayoutGuest class="font-nunito">
 
-    <Head title="Create a new cosrosmos account" />
+    <Head title="Create a new weconnect account" />
 
     <SectionFullScreen v-slot="{ cardClass }" bg="" class="bg-gradient-to-r from-gray-200 to-gray-300">
 
@@ -166,11 +322,13 @@ const submit = () => {
                     id="phone" class="" icon="fa-solid fa-phone" />
 
                   <div class="mb-2 transition-all ease-linear duration-200">
-                    <font-awesome-icon class="login-icon" icon="fa-regular fa-compass" />
-                    <select @change="loadNewCities" class="p-3 py-2 pl-9" id="state" v-model="form.state"
+
+                    <font-awesome-icon class="login-icon" icon="fa-solid fa-globe" />
+                    <select @change="loadNewLgas" class="p-3 py-2 pl-9" id="state" v-model="form.state"
                       :class="form.errors.state ? 'login-input-error' : 'login-input'">
                       <option v-for="state in states" :value="state.id" :key="state.id" v-html="`${state.name}`"></option>
                     </select>
+
                     <div v-if="form.errors.state" class="login-form-error">{{ form.errors.state }}</div>
                   </div>
 
@@ -178,13 +336,30 @@ const submit = () => {
                   <div class="mb-2 transition-all ease-linear duration-200">
                     <div class="relative">
                       <font-awesome-icon class="login-icon" icon="fa-solid fa-map-location-dot" />
-                      <select class="p-3 py-2 pl-9" id="city" v-model="form.city"
-                        :class="form.errors.city ? 'login-input-error' : 'login-input'">
-                        <option v-for="city in cities" :value="city.id" :key="city.id" v-html="`${city.name}`"></option>
+                      <select @change="loadNewWards"  class="p-3 py-2 pl-9 "  id="lga" v-model="form.lga"
+                        :class="lgaSelectFormClasses">
+                        <option v-for="lga in lgas" :value="lga.id" :key="lga.id" v-html="`${lga.name}`"></option>
                       </select>
 
+                      <img v-if="loading_loca_details" class="absolute inline-block w-[35px] mt-2 right-0 left-0 mx-auto"
+                    :src="Loader" alt="">
                     </div>
-                    <div v-if="form.errors.city" class="login-form-error">{{ form.errors.city }}</div>
+                    <div v-if="form.errors.lga" class="login-form-error">{{ form.errors.lga }}</div>
+                  </div>
+
+                  <div class="mb-2 transition-all ease-linear duration-200">
+                    <div class="relative">
+
+                      <font-awesome-icon class="login-icon" icon="fa-solid fa-location-crosshairs" />
+                      <select class="p-3 py-2 pl-9 "  id="ward" v-model="form.ward"
+                        :class="wardSelectFormClasses">
+                        <option v-for="ward in wards" :value="ward.id" :key="ward.id" v-html="`${ward.name}`"></option>
+                      </select>
+
+                      <img v-if="loading_loca_details" class="absolute inline-block w-[35px] mt-2 right-0 left-0 mx-auto"
+                    :src="Loader" alt="">
+                    </div>
+                    <div v-if="form.errors.ward" class="login-form-error">{{ form.errors.ward }}</div>
                   </div>
 
 
@@ -222,7 +397,7 @@ const submit = () => {
 
 
                 <p class=" text-xs font-bold mt-[20px]">Already registered?
-                    <Link :href="route('register')" class="text-primary-100 hover:underline">Login</Link>
+                    <Link :href="route('login')" class="text-primary-100 hover:underline">Login</Link>
                 </p>
               </form>
             </div>

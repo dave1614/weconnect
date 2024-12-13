@@ -23,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => AdminMiddleware::class,
             'check_registration' => CheckRegistrationPayment::class,
-            'providus' => ProvidusMiddleware::class
+            'providus' => ProvidusMiddleware::class,
         ]);
 
         //

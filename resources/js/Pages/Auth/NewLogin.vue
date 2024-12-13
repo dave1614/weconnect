@@ -62,7 +62,7 @@ const submit = () => {
 <template>
   <LayoutGuest class="font-nunito">
 
-    <Head title="Login to cosrosmos" />
+    <Head title="Login to weconnect" />
 
     <SectionFullScreen v-slot="{ cardClass }" bg="" class="bg-gradient-to-r from-gray-200 to-gray-300">
 
@@ -115,7 +115,7 @@ const submit = () => {
 
 
                   <login-input v-model="form.password" name="password" :error="form.errors.password" type="password"
-                    placeholder="Password" id="password" class="" />
+                    placeholder="Password" icon="fa-solid fa-lock" id="password" class="" />
 
 
                 </div>

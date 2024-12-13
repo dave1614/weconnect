@@ -2,6 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Functions\UsefulFunctions;
+use App\Models\InecWard;
+use App\Models\State;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -24,6 +27,9 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $user_name = fake()->userName();
+        $functions = new UsefulFunctions();
+        $ward = InecWard::inRandomOrder()->first();
         return [
             // 'name' => fake()->name(),
             // 'email' => fake()->unique()->safeEmail(),
@@ -31,19 +37,23 @@ class UserFactory extends Factory
             // 'password' => static::$password ??= Hash::make('password'),
             // 'remember_token' => Str::random(10),
 
-        
+
 
             'sponsor_user_id' => User::inRandomOrder()->first()->id,
             'name' => fake()->name(),
-            'user_name' => fake()->userName(),
+            'user_name' => $user_name,
+            'slug' => $functions->generateUniqueSlugForUser($user_name),
             'email' => fake()->unique()->safeEmail(),
             'country_id' => 151,
+            'state_id' => $ward->inec_state_id,
+            'lga_id' =>  $ward->inec_lga_id,
+            'ward_id' =>  $ward->id,
             'phone' => fake()->numerify('08#########'),
             'password' => Hash::make("Dave1614.."),
             'remember_token' => Str::random(10),
         ];
 
-        
+
     }
 
     /**

@@ -20,12 +20,15 @@ use App\Models\WithdrawalRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Exception;
-
-
 use App\Mail\NotifyMail;
 use App\Models\AirtimeTopup;
 use App\Models\AirtimeToWalletRecord;
 use App\Models\CablePlan;
+use App\Models\Comment;
+use App\Models\CommentLike;
+use App\Models\CommunityDetail;
+use App\Models\CommunityHeadRequest;
+use App\Models\CommunityLeaderRole;
 use App\Models\Country;
 use App\Models\DataPlan;
 use App\Models\EarningHistory;
@@ -33,17 +36,31 @@ use App\Models\EarningToWalletHistory;
 use App\Models\EasyLoan;
 use App\Models\EasySavings;
 use App\Models\EducationalPlan;
+use App\Models\FollowDetail;
+use App\Models\HashTag;
+use App\Models\InecWard;
 use App\Models\MonnifyPaymentDetail;
 use App\Models\MonnifySubToken;
 use App\Models\PaystackReference;
+use App\Models\Post;
+use App\Models\PostFavorite;
+use App\Models\PostLike;
+use App\Models\RecentSearch;
+use App\Models\ReplyComment;
+use App\Models\ReplyCommentLike;
 use App\Models\RouterPlan;
 use App\Models\SavingAutoWithdrawalHistory;
 use App\Models\SavingHistory;
 use App\Models\UserMonnifyDetail;
+use App\Notifications\LeaderRequestDismissed;
 use Carbon\Carbon;
+use DateTime;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Faker\Factory as Faker;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 
 class UsefulFunctions {
 
@@ -55,7 +72,661 @@ class UsefulFunctions {
         $this->CLUB_APIKEY = env("CLUB_APIKEY");
     }
 
-    
+    public function checkIfUserIsALeaderInCommunity($community_id, $user_id){
+        $user = User::find($user_id);
+        $is_leader = false;
+        if($user->ward_id == $community_id && !is_null($user->community_leader)){
+
+            $is_leader = true;
+
+        }
+
+
+        return $is_leader;
+    }
+
+    public function getCommunityLeadersByPosition($role_id, $community_id){
+        $leaders = [];
+
+        $leaders = User::where('ward_id', $community_id)->where('community_leader', $role_id)->get();
+
+        return $leaders;
+    }
+
+    public function getCommunityLeaderRolesIdsInArr(){
+        $role_arr = [];
+        $roles = CommunityLeaderRole::all();
+        foreach($roles as $role){
+            $role_arr[] = $role->id;
+        }
+
+        return $role_arr;
+    }
+
+    public function getPositionOfUserIn($community_id, $user_id){
+        $position = "visitor";
+        $user = User::find($user_id);
+
+        if($user->ward_id == $community_id){
+            if(!is_null($user->community_leader)){
+                $community_role_id = $user->community_leader;
+
+                $community_role = CommunityLeaderRole::find($community_role_id);
+                if(!is_null($community_role)){
+                    $position = $community_role->name;
+                }else{
+                    $position = "subject";
+                }
+            }else{
+                $position = "subject";
+            }
+        }
+
+        return strtolower($position);
+    }
+
+    public function initCommunityDetailsDbIfNot($community_id){
+        $details = CommunityDetail::where('ward_id', $community_id)->first();
+        if(!$details){
+            CommunityDetail::create([
+                'ward_id' => $community_id,
+            ]);
+
+        }
+    }
+
+    public function findOtherKingLeaderRequestsAndDismissThem($community_id){
+        $auth_user = User::find(10);
+        $requests = CommunityHeadRequest::where('community_leader_role_id', 1)->where('ward_id', $community_id)->get();
+        if($requests->count() > 0){
+            foreach($requests as $request){
+                $leader_request = CommunityHeadRequest::find($request->id);
+                $leader_user = User::find($leader_request->user_id);
+
+
+                $leader_user->notify(new LeaderRequestDismissed($auth_user, $leader_request, $leader_user));
+                $leader_request->delete();
+            }
+        }
+    }
+
+    public  function checkIfUserHasPendingRequestForCommLeader($user_id){
+        $request = CommunityHeadRequest::where('user_id', $user_id)->first();
+
+        return !$request ? false : true;
+    }
+
+    public function inecCurl($url, $use_post, $post_data = [])
+    {
+        $headers = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Cache-Control' => 'no-cache'
+
+        ];
+        if (!$use_post) {
+            $response = Http::withOptions([
+                'http_errors' => false,
+                'verify' => false,
+            ])->withHeaders($headers)->get($url);
+        } else {
+            // $response = Http::withOptions([
+            //     'http_errors' => false,
+            //     'verify' => false,
+            // ])->withHeaders($headers)->post($url, $post_data);
+            // $curl = curl_init($url);
+            // curl_setopt($curl, CURLOPT_POST, true);
+            // curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($post_data));
+            // curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            // curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+            // $response = curl_exec($curl);
+            // curl_close($curl);
+            // return $response;
+
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_SSL_VERIFYPEER => FALSE,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => $post_data,
+                CURLOPT_HTTPHEADER => $headers,
+            ));
+
+            $response = curl_exec($curl);
+
+            curl_close($curl);
+        }
+        return $response;
+    }
+
+    public function createRecentSearch($arr){
+        $check = RecentSearch::where('user_id', $arr['user_id'])->where('type', $arr['type'])->where('search', $arr['search'])->where('searched_user_id', $arr['searched_user_id'])->first();
+        if(is_null($check)){
+            RecentSearch::create($arr);
+        }else{
+            $check->delete();
+            RecentSearch::create($arr);
+        }
+    }
+
+    public function getSocialMediaTime($post_date, $post_time)
+  {
+    $social_formated_time = "";
+    if ($post_date !== "" && $post_time !== "") {
+      $post_date = strtotime($post_date);
+      $post_date = date("j M Y", $post_date);
+      $post_time = strtotime($post_time);
+      $post_time = date("H:i:s", $post_time);
+
+      $post_date1 = $post_date;
+      $post_time1 = $post_time;
+
+      $curr_date = date("j M Y");
+      $curr_time = date("h:i:sa");
+      $curr_date = date("j M Y", strtotime($curr_date));
+      $curr_time = date("H:i:s", strtotime($curr_time));
+
+      $curr_date = $curr_date . " " . $curr_time;
+      // echo $curr_date;
+      $curr_date = new DateTime($curr_date);
+      $post_date = $post_date . " " . $post_time;
+      $post_date = new DateTime($post_date);
+
+      $time_diff = $curr_date->getTimestamp() - $post_date->getTimestamp();
+      // echo $time_diff;
+      if ($time_diff >= 0) {
+        //First Check If Time Is Greater Equal
+        if ($time_diff == 0) {
+          $social_formated_time = "Just Now";
+        } else if ($time_diff <= 60) {
+          $social_formated_time = $time_diff . " secs ago";
+        } else if (($time_diff > 60) && ($time_diff < 3600)) {
+          $social_formated_time = floor($time_diff / 60);
+          $social_formated_time = $social_formated_time . " mins ago";
+        } else if (($time_diff >= 3600) && ($time_diff < 86400)) {
+          $social_formated_time = floor($time_diff / 3600);
+          if ($social_formated_time == 1) {
+            $social_formated_time = $social_formated_time . " hour ago";
+          } else {
+            $social_formated_time = $social_formated_time . " hours ago";
+          }
+        } else if (($time_diff >= 86400) && ($time_diff < 2628000)) {
+          $social_formated_time = floor($time_diff / 86400);
+          if ($social_formated_time == 1) {
+            $social_formated_time = $social_formated_time . " day ago";
+          } else {
+            $social_formated_time = $social_formated_time . " days ago";
+          }
+        } else if (($time_diff >= 2628000) && (date("Y") == date("Y", strtotime($post_date1)))) {
+          $social_formated_time = date("j M", strtotime($post_date1));
+        } else if ((date("Y") !== date("Y", strtotime($post_date1)))) {
+          $social_formated_time = date("j M Y", strtotime($post_date1));
+        }
+      }
+    }
+    return $social_formated_time;
+  }
+
+
+    public function allUsersFollowOneUser($user_id){
+        $users = User::where("id", "!=", $user_id)->get();
+        if($users->count() > 0){
+            foreach($users as $user){
+                $user = User::find($user->id);
+                if(!$this->checkIfUserIsFollowingAnother($user->id, $user_id)){
+
+
+                    $user->follow(User::find($user_id));
+                }
+            }
+        }
+    }
+
+    public function checkIfUserIsFollowingAnother($follower, $followed){
+        $follow = FollowDetail::where("follower", $follower)->where("followed", $followed)->first();
+        return $follow ? true : false;
+    }
+
+    public function populateHashtagsForTesting(){
+        $faker = Faker::create();
+
+        for($i = 0; $i < 2; $i++){
+            $tag = $faker->word();
+
+            $post_id = Post::inRandomOrder()->limit(1)->first()->id;
+            $this->storeHashTags($tag, $post_id);
+
+        }
+    }
+
+    public function storeHashTags($tag, $post_id){
+        if(HashTag::where('tag', $tag)->where('post_id', $post_id)->count() == 0){
+            HashTag::create([
+                'tag' => $tag,
+                'post_id' => $post_id
+            ]);
+        }
+    }
+
+    public function convertNumberToKOrMorB($number){
+        if($number < 1000){
+            return $number;
+        }else if($number < 1000000){
+            return round($number / 1000, 1) . "K";
+        }else{
+            return round($number / 1000000, 1) . "M";
+        }
+    }
+
+    public function generateNewUniqueNameForImage($type){
+        $new_name = str()->random();
+
+        $path  = $type == 'image' ? 'images' : 'videos';
+        $file = public_path("/{$path}/" . $new_name);
+
+        return ! file_exists($file) ? $new_name : $this->generateNewUniqueNameForImage($type);
+
+    }
+
+    public function giveCommentDummyRelpies($comment_id, $replies_num){
+        $comment = Comment::find($comment_id);
+        for($j = 0; $j < $replies_num; $j++){
+            $user = User::inRandomOrder()->limit(1)->first();
+            $faker = Faker::create();
+            $text = $faker->paragraph(1);
+            ReplyComment::create([
+                'user_id' => $user->id,
+                'post_id' => $comment->post_id,
+                'comment' => $text,
+                'comment_short' => substr($text, 0, 50),
+                'replied_to' => $comment->id
+            ]);
+        }
+    }
+
+    public function generateUniqueSlugForUser($user_name){
+        $slug = Str::slug($user_name);
+        $user = User::where("slug", $slug)->first();
+        if($user){
+            $slug = $slug . "-" . rand(1000, 9999);
+        }
+        return $slug;
+    }
+
+    public function getPostsForBookmarksPage($user_id, $last_id = 0){
+        $length = 2;
+
+        // $posts = Post::whereHas('hashtags', function ($query) use ($tag) {
+        //     $query->where('tag', $tag);
+        // });
+        $posts = PostFavorite::where('user_id', $user_id)->with('post', function($query) {
+            return $query->with(['user', 'comments', 'likes']);
+        });
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id);
+        }
+
+        $posts = $posts
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+    public function getPostsForHashTagPage($tag, $last_id = 0){
+        $length = 2;
+
+        // $posts = Post::whereHas('hashtags', function ($query) use ($tag) {
+        //     $query->where('tag', $tag);
+        // });
+        $posts = HashTag::where('name', $tag)->with('post', function($query) {
+            return $query->with(['user', 'comments', 'likes']);
+        });
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id);
+        }
+
+        $posts = $posts
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+    public function getPostsForSearchPage($search_param, $last_id = 0){
+        $length = 6;
+
+        $posts = Post::where('caption', 'REGEXP', "\\b{$search_param}\\b");
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id);
+        }
+
+        $posts = $posts->with(['user', 'comments', 'likes'])
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+
+    public function getPostsForUserFrontPage($user_id, $last_id = 0){
+        $length = 10;
+        $user = User::find($user_id);
+        $posts =  Post::whereHas('user', function ($query) use ($user) {
+            $query->whereIn('id', $user->following->pluck('followed'));
+        });
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id);
+        }
+
+        $posts = $posts->with(['user', 'comments', 'likes'])
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+
+    public function getPostsForUserCommunityPage($community_id, $last_id = 0){
+        $length = 4;
+        $community = InecWard::find($community_id);
+        $posts = $community->posts();
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id)->whereNotNull('ward_id');
+        }
+
+        $posts = $posts->with(['user', 'comments', 'likes'])
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+
+    public function getPostsForUserProfilePage($user_id, $last_id = 0){
+        $length = 4;
+        $user = User::find($user_id);
+        $posts = $user->posts();
+
+        if($last_id > 0){
+            $posts = $posts->where('id', '<', $last_id);
+        }
+
+        $posts = $posts->with(['user', 'comments', 'likes'])
+        ->orderBy("id", "DESC")
+        ->limit($length)
+        // ->offset(0)
+        ->get();
+
+        return $posts;
+    }
+
+    public function followAllUsers($user_id){
+        $user = User::find($user_id);
+        $users = User::all();
+        foreach($users as $user){
+
+            if($user->id != 11){
+
+                FollowDetail::create([
+                    "follower" => 11,
+                    "followed" => $user->id
+                ]);
+            }
+        }
+    }
+
+    public function giveUsersRandomProfilePics(){
+        $users = User::all();
+        $images_arr = [];
+        $images = File::allFiles(public_path("/profile_pics"));
+
+        foreach ($images as $path) {
+            $files = pathinfo($path);
+            $images_arr[] = $files['basename'];
+        }
+
+        foreach($users as $user){
+            if($user->id != 11){
+                $user = User::find($user->id);
+                $randomFile = $images_arr[rand(0, count($images_arr) - 1)];
+                $path = "/profile_pics/{$randomFile}";
+                $user->profile_picture = $path;
+                $user->save();
+            }
+        }
+    }
+
+    public function searchTextForHashTags($text){
+        // if($this->isHTML($text)) { return $text; }
+        $regex = "/#(\w+)/";
+
+
+        $text = preg_replace_callback(
+            $regex,
+            function ($matches) {
+                return "<a href='/tags/".substr($matches[0], 1)."' class='hover:underline ml-1 text-primary-100 inline-block'>".$matches[0]."</a>";
+            },
+            $text
+        );
+        return $text;
+    }
+
+    public function searchTextForUserTags($text){
+        // if($this->isHTML($text)) { return $text; }
+        $regex = "/@(\w+)/";
+
+        $text = preg_replace_callback(
+            $regex,
+            function ($matches) {
+                return "<a href='/".$this->getSlugForUserName($matches[0])."' class='hover:underline ml-1 text-primary-100 inline-block'>".$matches[0]."</a>";
+            },
+            $text
+        );
+        return $text;
+    }
+
+    public function getSlugForUserName($user_name){
+        // dd($user_name);
+        $user = User::where("user_name", substr($user_name, 1))->first();
+
+        return !$user ? '' : $user->slug;
+    }
+
+    public function isHTML($string){
+        return $string != strip_tags($string) ? true:false;
+       }
+
+    public function createDummyPostsForUser($user_id){
+
+        $file_types = ['image', 'video'];
+        $media = $this->getAllTestImagesAndVideosFromVideo();
+        $num_of_posts = rand(1, 10);
+        for($i = 0; $i < $num_of_posts; $i++){
+
+            $faker = Faker::create();
+            $caption = "#". $faker->paragraph(3);
+            $caption = str_replace("\n", " ", $caption);
+            $caption_short = substr($caption, 0, 50);
+            // $caption_short = $this->searchTextForHashTags($caption_short);
+            // $caption = $this->searchTextForHashTags($caption);
+
+            $media_files_num = rand(2, 10);
+            $media_files = [];
+            for($j = 0; $j < $media_files_num; $j++){
+                $file_type = $file_types[rand(0, 1)];
+                $randomFile = $media["{$file_type}s"][rand(0, count($media["{$file_type}s"]) - 1)];
+                $ext = pathinfo($randomFile, PATHINFO_EXTENSION);
+                $source = $file_type == "image" ? "/test_images/{$randomFile}" : "/test_videos/{$randomFile}";
+                $new_file_name = $this->generateNewUniqueNameForImage($file_type) . ".". $ext;
+                $destination = $file_type == "image" ? "/images/{$new_file_name}" : "/videos/{$new_file_name}";
+
+                copy(public_path($source), public_path($destination));
+                $media_files[] = [
+                    "type" => $file_type,
+                    "small_path" => $destination,
+                    "path"=> $destination
+                ];
+
+
+            }
+
+
+            $likes_num = rand(0, 20);
+            $comments_num = rand(0, 20);
+
+            $post = Post::create([
+                'user_id' => $user_id,
+                'caption' => $caption,
+                'caption_short' => $caption_short,
+                'media' => json_encode($media_files)
+
+            ]);
+
+            preg_match_all('/#(\w+)/', $caption, $matches);
+            if(count($matches[1]) > 0){
+                foreach ($matches[1] as $hashtag) {
+
+                    if(HashTag::where('name', $hashtag)->where('post_id', $post->id)->count() == 0){
+                        HashTag::create([
+                            'name' => $hashtag,
+                            'post_id' => $post->id
+                        ]);
+                    }
+                }
+            }
+
+            if($likes_num > 0){
+                $this->givePostDummyLikes($post->id, $likes_num);
+            }
+
+            if($comments_num > 0){
+                $this->givePostDummyComments($post->id, $comments_num);
+            }
+
+        }
+    }
+
+    public function givePostDummyComments($post_id, $comments_num){
+
+
+        for($i = 0; $i < $comments_num; $i++){
+            $user = User::inRandomOrder()->limit(1)->first();
+            $faker = Faker::create();
+            $comment = $faker->paragraph(1);
+            $replies_num = rand(0, 2);
+
+            $comment = Comment::create([
+                'user_id' => $user->id,
+                'post_id' => $post_id,
+                'comment' => $comment,
+                'comment_short' => substr($comment, 0, 50)
+            ]);
+
+            for($j = 0; $j < $replies_num; $j++){
+                $user = User::inRandomOrder()->limit(1)->first();
+                $faker = Faker::create();
+                $text = $faker->paragraph(1);
+                ReplyComment::create([
+                    'user_id' => $user->id,
+                    'post_id' => $post_id,
+                    'comment' => $text,
+                    'comment_short' => substr($text, 0, 50),
+                    'replied_to' => $comment->id
+                ]);
+            }
+
+            $likes_num = rand(0, 20);
+            $this->giveCommentDummyLikes($post_id, $comment->id, $likes_num);
+        }
+    }
+
+    public function giveReplyDummyLikes($post_id, $comment_id, $reply_id, $likes_num){
+
+        for($j = 0; $j < $likes_num; $j++){
+            $user = User::inRandomOrder()->limit(1)->first();
+            ReplyCommentLike::create([
+                'user_id' => $user->id,
+                'reply_comment_id' => $reply_id,
+                'post_id' => $post_id,
+                'comment_id' => $comment_id
+            ]);
+        }
+    }
+
+    public function giveCommentDummyLikes($post_id, $comment_id, $likes_num){
+
+        for($j = 0; $j < $likes_num; $j++){
+            $user = User::inRandomOrder()->limit(1)->first();
+            CommentLike::create([
+                'user_id' => $user->id,
+                'comment_id' => $comment_id,
+                'post_id' => $post_id
+            ]);
+        }
+    }
+
+    public function givePostDummyLikes($post_id, $likes_num){
+
+        for($j = 0; $j < $likes_num; $j++){
+            $user = User::inRandomOrder()->limit(1)->first();
+            PostLike::create([
+                'user_id' => $user->id,
+                'post_id' => $post_id
+            ]);
+        }
+    }
+
+    public function getAllTestImagesAndVideosFromVideo(){
+        $ret_arr = ['images' => [], 'videos' => []];
+        $images = File::allFiles(public_path("/test_images"));
+
+        foreach ($images as $path) {
+            $files = pathinfo($path);
+            $ret_arr['images'][] = $files['basename'];
+        }
+
+        $videos = File::allFiles(public_path("/test_videos"));
+
+        foreach ($videos as $path) {
+            $files = pathinfo($path);
+            $ret_arr['videos'][] = $files['basename'];
+        }
+        return $ret_arr;
+    }
+
+    public function createDummyPostsForAllUsers(){
+        $users = User::inRandomOrder()->limit(30)->get();
+        foreach($users as $user){
+            $this->createDummyPostsForUser($user->id);
+        }
+
+        $this->createDummyPostsForUser(11);
+        // $this->followAllUsers(11);
+    }
 
     public function getTotalAmountCreditedByUserInADay($user_id){
         $total = 0.00;
@@ -312,7 +983,7 @@ class UsefulFunctions {
                 }
             } else{
 
-           
+
                 $url = "https://www.nellobytesystems.com/APIWAECPackagesV2.asp";
                 $use_post = false;
 
@@ -333,7 +1004,7 @@ class UsefulFunctions {
 
                                 $product_id = $plans[$i]->PRODUCT_CODE;
 
-                                
+
 
                                 $price = $plans[$i]->PRODUCT_AMOUNT;
 
@@ -386,7 +1057,7 @@ class UsefulFunctions {
                                     'old_price' => (float) $price,
                                     'new_price' => (float) $new_price,
                                 ];
-                                
+
                             }
                         }
                     }
@@ -438,7 +1109,7 @@ class UsefulFunctions {
                                 'price' => (float) $price,
                             ];
                         }
-                        
+
                     }
                 }
             }
@@ -510,19 +1181,19 @@ class UsefulFunctions {
         // return json_encode($club_plans);
         return json_encode(array_merge($payscribe_plans, $club_plans));
     }
-    
+
 
     public function getRouterPlanNewPrice($network, $platform, $product_id, $old_price)
     {
         $network = strtolower($network);
         $new_price = $old_price;
 
-        
+
         $data_plan = RouterPlan::where('network', $network)->get();
         if ($data_plan->count() == 1) {
             $data_plan = $data_plan[0];
 
-            
+
 
             if ($data_plan->modify_prices == "yes") {
                 if ($data_plan->price_alteration_option == 'percentage') {
@@ -638,8 +1309,8 @@ class UsefulFunctions {
             //             }
             //         }
             //     }
-            // } else 
-            
+            // } else
+
             if ($platform == "clubkonnect") {
 
                 if ($network == "spectranet") {
@@ -648,7 +1319,7 @@ class UsefulFunctions {
                     $club_type = "smile-direct";
                 }
 
-                
+
 
                 $url = $network == "spectranet" ? "https://www.nellobytesystems.com/APISpectranetPackagesV2.asp" : "https://www.nellobytesystems.com/APISmilePackagesV2.asp";
                 $use_post = false;
@@ -906,7 +1577,7 @@ class UsefulFunctions {
                         ];
 
                         $response = $this->payscribeVtuCurl($url, $use_post, $post_data);
-                        
+
                         if ($this->isJson($response)) {
                             $response = json_decode($response);
                             if (is_object($response)) {
@@ -914,12 +1585,12 @@ class UsefulFunctions {
                                 if ($response->status == true && $response->status_code == 200) {
 
                                     $customer_name = $response->message->details->customer_name;
-                                    
+
                                 }
                             }
                         }
 
-                            
+
                     }
                 }
             }
@@ -985,7 +1656,7 @@ class UsefulFunctions {
                         if (isset($plan->$platform)) {
 
                             $preset_plan = $plan->$platform;
-                            
+
                             if (!is_null($preset_plan)) {
                                 $specific_value = $product_id;
 
@@ -1114,12 +1785,12 @@ class UsefulFunctions {
                         // return $response->MOBILE_NETWORK->$network;
 
                         $plans = $response->TV_ID->$club_net[0]->PRODUCT;
-                        
+
                         if (count($plans) > 0) {
 
                             for ($i = 0; $i < count($plans); $i++) {
                                 $name = $plans[$i]->PACKAGE_NAME;
-                                
+
                                 $product_id = $plans[$i]->PACKAGE_ID;
 
                                 $price = $plans[$i]->PACKAGE_AMOUNT;
@@ -1228,10 +1899,10 @@ class UsefulFunctions {
                                     $preset_plans = json_decode($data_plan->details);
                                     // $preset_plans = json_decode(json_encode($preset_plans));
                                     // dd($preset_plans);
-                                    
+
                                     foreach($preset_plans as $plan){
                                         if(isset($plan->$platform)){
-                                    
+
                                             $preset_plan = $plan->$platform;
                                             $new_price = $price;
                                             if(!is_null($preset_plan)){
@@ -1244,7 +1915,7 @@ class UsefulFunctions {
                                                 // $filtered_array = json_decode(json_encode($filtered_array));
                                                 // dd($filtered_array);
                                                 if(count($filtered_array) > 0){
-                                                    
+
                                                     foreach($filtered_array as $array){
                                                         $new_price = $array->price;
                                                     }
@@ -1293,10 +1964,10 @@ class UsefulFunctions {
                                     $preset_plans = json_decode($data_plan->details);
                                     // $preset_plans = json_decode(json_encode($preset_plans));
                                     // dd($preset_plans);
-                                    
+
                                     foreach($preset_plans as $plan){
                                         if(isset($plan->payscribe)){
-                                    
+
                                             $preset_plan = $plan->payscribe;
                                             $new_price = $price;
                                             if(!is_null($preset_plan)){
@@ -1309,7 +1980,7 @@ class UsefulFunctions {
                                                 // $filtered_array = json_decode(json_encode($filtered_array));
                                                 // dd($filtered_array);
                                                 if(count($filtered_array) > 0){
-                                                    
+
                                                     foreach($filtered_array as $array){
                                                         $new_price = $array->price;
                                                     }
@@ -1346,7 +2017,7 @@ class UsefulFunctions {
                             $plans = $response->MOBILE_NETWORK->$net[0]->PRODUCT;
                         } else {
                             $net = $network == "mtn" ? strtoupper($network) : ucfirst($network);
-                            
+
                             $plans = $response->MOBILE_NETWORK->$net[0]->PRODUCT;
                         }
                         if (count($plans) > 0) {
@@ -1428,7 +2099,7 @@ class UsefulFunctions {
         $payscribe_plans = $this->getAllPayscribePlansForDefault($network);
         $club_plans = $this->getAllClubPlansForDefault($network);
         $eminence_plans = $this->getAllEminencePlansForDefault($network);
-        
+
 
         // return ($club_plans);
         return json_encode(array_merge($gsubz_plans, $payscribe_plans, $club_plans, $eminence_plans));
@@ -1445,7 +2116,7 @@ class UsefulFunctions {
         return json_encode(array_merge($payscribe_plans, $club_plans));
     }
 
-    
+
 
 
     public function getAllClubCablePlansForDefault($network)
@@ -1466,9 +2137,9 @@ class UsefulFunctions {
             if (!is_null($response)) {
                 $response = json_decode(json_encode($response));
                 // return $response->MOBILE_NETWORK->$network;
-                
+
                 $plans = $response->TV_ID->$network[0]->PRODUCT;
-                
+
                 if (count($plans) > 0) {
 
                     for ($i = 0; $i < count($plans); $i++) {
@@ -1600,8 +2271,8 @@ class UsefulFunctions {
         $ret_arr = [];
 
         $network = strtolower($network);
-        
-        
+
+
         $arr = ['eminence' => null];
 
         $url = "https://app.eminencesub.com/api/data";
@@ -1637,7 +2308,7 @@ class UsefulFunctions {
         }
 
         $ret_arr[] = $arr;
-        
+
 
 
 
@@ -1649,14 +2320,14 @@ class UsefulFunctions {
         $ret_arr = [];
 
 
-        
+
         $arr = ['clubkonnect' => null];
 
         $url = "https://www.nellobytesystems.com/APIDatabundlePlansV1.asp";
         $use_post = false;
 
         $response = $this->vtu_curl($url, $use_post);
-        
+
         if ($response->ok()) {
             $response = $response->json();
             if (!is_null($response)) {
@@ -1690,20 +2361,20 @@ class UsefulFunctions {
         }
 
         $ret_arr[] = $arr;
-        
+
 
 
 
         return $ret_arr;
     }
 
-    
+
     public function getAllPayscribePlansForDefault($network)
     {
         $ret_arr = [];
 
         $network = strtolower($network);
-        
+
         $arr = ['payscribe' => null];
 
         $url = "https://api.payscribe.ng/api/v1/data/lookup?network=" . $network;
@@ -1733,7 +2404,7 @@ class UsefulFunctions {
         }
 
         $ret_arr[] = $arr;
-        
+
 
 
 
@@ -1752,9 +2423,9 @@ class UsefulFunctions {
             $service_ids = ['airtel_cg', 'airtelcg'];
         } else if ($network == '9mobile') {
             $service_ids = ['etisalat_data'];
-        } 
+        }
 
-        
+
 
         for($i = 0; $i < count($service_ids); $i++){
             $service_id = $service_ids[$i];
@@ -1784,13 +2455,13 @@ class UsefulFunctions {
                         }
                     }
                 }
-                
+
             }
 
             $ret_arr[] = $arr;
         };
 
-        
+
 
         return $ret_arr;
     }
@@ -1809,7 +2480,7 @@ class UsefulFunctions {
         $this->addEarningTransferHistory($user_id, $amount);
         $summary = "Weekly Earnings To Main Wallet Transfer";
         $this->creditUser($user_id, $amount, $summary);
-        
+
     }
 
     public function checkIfUsersSavingIsSupposedToBeDoneAndProcess($user_id, $curr_date, $curr_date_time){
@@ -1855,7 +2526,7 @@ class UsefulFunctions {
                 $next_debit_date = date("j M Y", strtotime("+1 month", strtotime($last_date_debited)));
             }
 
-            
+
 
             return $next_debit_date == $curr_date ? true : false;
         }else{
@@ -1974,7 +2645,7 @@ class UsefulFunctions {
 
 
     public function processAndDebitUserSaving($saving_id,$curr_date, $curr_date_time){
-        
+
         $saving = EasySavings::find($saving_id);
 
         $user_id = $saving->user_id;
@@ -1992,13 +2663,13 @@ class UsefulFunctions {
         $saving->defaulted = ($account_balance >= $amount) ? 0 : 1;
 
         $saving->save();
-        
+
 
         $summary = "Debit for your saving plan";
         $this->debitUser($user_id,$amount,$summary);
 
-        
-        
+
+
     }
 
     public function getUsersAccountBalance($user_id){
@@ -2076,14 +2747,14 @@ class UsefulFunctions {
 
         $use_post = false;
 
-        
+
         $post_data = [
-            
+
         ];
 
         $response = $this->monnifyCurl($url, $use_post, $post_data);
         return $response;
-        
+
     }
 
     public function generateNewMonnifyAcctReferenceForUser(){
@@ -2094,8 +2765,8 @@ class UsefulFunctions {
     }
 
     public function generateMonnifyAcctsForUser($user_id){
-        
-        
+
+
         $user = User::find($user_id);
         $details = $user->monnifyDetails()->get('id');
         if($details->count() == 0){
@@ -2144,7 +2815,7 @@ class UsefulFunctions {
                                     $accountNumber = $accounts[$i]->accountNumber;
                                     $accountName = $accounts[$i]->accountName;
 
-                                    
+
                                     $wema_account_name = ($bankCode == "035") ? $accountName : $wema_account_name;
                                     $wema_account_number = ($bankCode == "035") ? $accountNumber : $wema_account_number;
 
@@ -2212,24 +2883,24 @@ class UsefulFunctions {
     public function getMonnifyAccessToken()
     {
 
-        
+
 
         $bearer_token = "";
         $subToken = MonnifySubToken::find(1);
         if (!is_null($subToken)) {
-            
+
             $token = $subToken->bearer_token;
             $expires_in = date("Y-m-d H:i:s", strtotime($subToken->expires_in));
-            
+
 
             $date_time = date("Y-m-d H:i:s");
-            
+
 
             $curr_date = strtotime($date_time);
 
             $expires_in = strtotime($expires_in);
 
-            
+
 
             $date_diff = $expires_in - $curr_date;
             // return $date_diff;
@@ -2268,7 +2939,7 @@ class UsefulFunctions {
                 $newdate = $dateinsec + $expires_in;
                 $expires_in = date("Y-m-d H:i:s", $newdate);
 
-               
+
                 MonnifySubToken::create([
                     'bearer_token' => $bearer_token,
                     'expires_in' => $expires_in
@@ -2286,7 +2957,7 @@ class UsefulFunctions {
             'Authorization' => 'Bearer '. $token,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json'
-            
+
         ];
         if (!$use_post) {
             $response = Http::withOptions([
@@ -2305,7 +2976,7 @@ class UsefulFunctions {
     public function getTtalReferralNumsByUser($user_id){
         $mlm_db_id = $this->getUsersFirstMlmDbId($user_id);
         return MlmDb::where('sponsor', $mlm_db_id)->get()->count();
-        
+
     }
 
     public function checkIfUserHasEnoughReferralsFrWithdrawal($user_id, $min_referrals){
@@ -2343,7 +3014,7 @@ class UsefulFunctions {
 
     public function getNetworkForNumber($phone_code,$phone){
         $operator_id = $this->getReloadlyOperatorId($phone_code, $phone, 151);
-                
+
         if($operator_id == "344"){
             return "glo";
         } else if ($operator_id == "341") {
@@ -2353,7 +3024,7 @@ class UsefulFunctions {
         } else if ($operator_id == "340") {
             return "9mobile";
         }
-                
+
     }
 
     public function getReloadlyOperatorId($phone_code, $phone,$country_id){
@@ -2381,7 +3052,7 @@ class UsefulFunctions {
             'Authorization' => 'Bearer '. $token,
             'Accept' => is_null($accept) ? 'application/json' : $accept,
             'Content-Type' => 'application/json'
-            
+
         ];
         if (!$use_post) {
             $response = Http::withOptions([
@@ -2400,9 +3071,9 @@ class UsefulFunctions {
 
     public function getReloadlyAccessToken()
     {
-        
+
         $table_name = 'reloadly_sub_token';
-    
+
         $bearer_token = "";
         $query = DB::table($table_name)->get();
         if ($query->count() == 1) {
@@ -2471,21 +3142,21 @@ class UsefulFunctions {
         ];
 
         $post_data = [
-            
+
             "audience" => "https://topups.reloadly.com",
             "client_id" => "VQRb2qzyI88cuydajOVPgpCPCIrNtflR",
             "client_secret" => "roXBST25t7-g74kzuLR1N4IOvjvxhk-SJyMevNExofbpbyuEy03sbVfbpp0voT1",
             "grant_type" => "client_credentials",
-  
+
 
         ];
-         
-           
+
+
         $response = Http::withOptions([
             'verify' => false,
         ])->withHeaders($headers)->post($url, $post_data);
-            
-        
+
+
         return $response;
     }
 
@@ -2538,7 +3209,7 @@ class UsefulFunctions {
             $network = str_replace(' ', '', $network);
             // dd($network);
 
-        
+
 
             if ($network == "mtn") {
                 $mobilenetwork_code = "01";
@@ -2600,7 +3271,7 @@ class UsefulFunctions {
                 }
             }else{
                 if ($vtu_platform_shrt != "eminence") {
-                    
+
                     $url = "https://www.nellobytesystems.com/APIAirtimeV1.asp?UserID=".$this->CLUB_USERID."&APIKey=". $this->CLUB_APIKEY."&MobileNetwork=" . $mobilenetwork_code . "&Amount=" . $form_array['amount'] . "&MobileNumber=" . $form_array['phone'];
                     $response = $this->vtu_curl($url, false, $post_data = []);
                     // $response = json_encode(array('status' => 'ORDER_RECEIVED', 'orderid' => '5424425'));
@@ -2611,7 +3282,7 @@ class UsefulFunctions {
                             $status = $response->status;
 
                             if ($status == "ORDER_RECEIVED") {
-                                
+
                                 $order_id = $response->orderid;
                                 $arrrr = array(
                                     'user_id' => $form_array['user_id'],
@@ -2624,13 +3295,13 @@ class UsefulFunctions {
                                     'order_id' => $order_id
                                 );
                                 $this->addTransactionStatus($arrrr);
-                                
+
                             }
                         }
                     }
 
-                    
-                } 
+
+                }
                 else {
                     $url= "https://app.eminencesub.com/api/buy-airtime";
                     $type = strtoupper(substr($vtu_platform, 9));
@@ -2651,7 +3322,7 @@ class UsefulFunctions {
                     if ($this->isJson($response)) {
                         $response = json_decode($response);
                         if (is_object($response)) {
-                            
+
                             // $status = $response->status;
                             // $message = $response->message;
 
@@ -2670,7 +3341,7 @@ class UsefulFunctions {
                                     'order_id' => $order_id
                                 );
                                 $this->addTransactionStatus($arrrr);
-                                
+
                             // }
                         }
                     }
@@ -2678,9 +3349,9 @@ class UsefulFunctions {
             }
         }else{
             $user_id = $form_array['user_id'];
-           
+
             $amount = $form_array['amount'];
-            
+
 
 
             $phone = $form_array['phone'];
@@ -2724,8 +3395,8 @@ class UsefulFunctions {
                 if (is_object($response)) {
                     if (isset($response->status)) {
                         if ($response->status && $response->transactionId) {
-                            
-                            
+
+
 
                             $order_id = "RE" .  $response->transactionId;
                             $form_array = array(
@@ -2743,12 +3414,12 @@ class UsefulFunctions {
                                 $response_arr['success'] = true;
                                 $response_arr['order_id'] = $order_id;
                             }
-                            
+
                         }
                     }
                 }
             }
-        
+
         }
 
     }
@@ -2811,7 +3482,7 @@ class UsefulFunctions {
                 $positioning = $row->positioning;
                 $user_id = $row->user_id;
                 $logo = null;
-                
+
                 $full_name = $this->getUserParamById("name", $user_id);
                 $date_created = $row->date_created;
                 $index = $this->getMlmIdsIndexNumber($currentID);
@@ -2986,7 +3657,7 @@ class UsefulFunctions {
                         $return_str .= '<i onclick="goUpMlm(this,event,' . $currentID . ',' . $your_mlm_db_id . ')" data-package="' . $package1 . '" class="fas fa-arrow-up col-span-2 mt-2" style="cursor:pointer;"></i>';
 
 
-                        
+
                         $return_str .= "<p class='col-span-8 text-xs'> " . $full_name . "<span class=' font-bold italic'>(" . $full_phone_number . ")</span></p>";
 
 
@@ -3130,9 +3801,9 @@ class UsefulFunctions {
         $total_amount = 0;
         $date = date("j M Y");
 
-        
+
         $query = WithdrawalHistory::whereDate('created_at', Carbon::today())->get('amount');
-        
+
         if ($query->count() > 0) {
             foreach ($query as $row) {
                 $amount = $row->amount;
@@ -3316,17 +3987,17 @@ class UsefulFunctions {
             'Content-Type' => 'application/json'
         ];
         if (!$use_post) {
-            
+
             $response = Http::withOptions([
                 'verify' => false,
             ])->withHeaders($headers)->get($url);
-        
+
         } else {
-            
+
             $response = Http::withOptions([
                 'verify' => false,
             ])->withHeaders($headers)->post($url, $post_data);
-            
+
         }
 
         // if (!$use_post) {
@@ -3374,7 +4045,7 @@ class UsefulFunctions {
             'type' => 'misc'
         );
 
-     
+
 
         $this->sendMessage($form_array);
         $this->sendEmail($email, $title, $message);
@@ -3573,7 +4244,7 @@ class UsefulFunctions {
         $data_plans = array();
         $url = "https://api.payscribe.ng/api/v1/data/lookup?network=".$network;
         $use_post = false;
-        
+
         $response = $this->payscribeVtuCurl($url,$use_post);
 
 
@@ -3582,27 +4253,27 @@ class UsefulFunctions {
             // var_dump($response);
             if(is_object($response)){
                 if($response->status && $response->status_code == 200){
-                
-                    
+
+
                     // var_dump($response->message->details);
-                    
+
                     $plans_2 = $response->message->details[0]->plans;
-                    
+
 
                     if(is_array($plans_2)){
 
-                        
+
                         $j = 0;
 
                         // echo json_encode($plans);
                         // echo json_encode($plans_2);
 
-                        
+
                         $plan_2_new_arr = array();
-                        
+
 
                         for($i = 0; $i < count($plans_2); $i++){
-                            
+
                             $product_id = $plans_2[$i]->plan_code;
                             // $product_id = $plans[$i]->PRODUCT_ID;
                             $product_name = $plans_2[$i]->name;
@@ -3612,8 +4283,8 @@ class UsefulFunctions {
                             // $product_amount = round((0.04 * $product_amount) + $product_amount,2);
 
                             $new_price = $this->getDataPlanNewPrice($network, 'payscribe', $product_id, $product_amount);
-                        
-                            
+
+
 
                             $plan_2_new_arr[$i] = [
                                 "network" => $network,
@@ -3629,7 +4300,7 @@ class UsefulFunctions {
 
                         $all_plans_arr = $plan_2_new_arr;
 
-            
+
                         $index = 0;
                         for($i = 0; $i < count($all_plans_arr); $i++){
                             $index++;
@@ -3709,14 +4380,14 @@ class UsefulFunctions {
 
                             if (is_numeric($product_amount)) {
 
-                                
-                                
+
+
 
                                 // $product_amount = round(($perc_disc * $product_amount) + $product_amount, 2);
 
                                 $product_amount += $additional_charge;
 
-                              
+
 
 
                                 if ($network_id_cmp == $network_id) {
@@ -3730,7 +4401,7 @@ class UsefulFunctions {
 
                                     ];
 
-                                    
+
                                     array_push($plan_new_arr, $plan_obj);
                                 }
                             }
@@ -3740,7 +4411,7 @@ class UsefulFunctions {
 
                         $all_plans_arr = $plan_new_arr;
 
-                        
+
 
 
                         $index = 0;
@@ -3753,10 +4424,10 @@ class UsefulFunctions {
                         }
 
                         //Add gsubz mtn data
-                        
+
 
                         //Add Club Data
-                        
+
 
                         $data_plans = $all_plans_arr;
                     }
@@ -3817,9 +4488,9 @@ class UsefulFunctions {
                         $product_amount = $plans[$i]->PRODUCT_AMOUNT;
                         // $product_amount = $product_amount + 20;
                         if ($network == "MTN") {
-                           
+
                             $amt_to_add = 25;
-                            
+
                         } else if ($network == "Glo") {
                             $amt_to_add = 25;
                         } else if ($network == "9mobile") {
@@ -3878,7 +4549,7 @@ class UsefulFunctions {
                         if (isset($plan->$platform)) {
 
                             $preset_plan = $plan->$platform;
-                            
+
                             if (!is_null($preset_plan)) {
                                 $specific_value = $product_id;
 
@@ -3976,7 +4647,7 @@ class UsefulFunctions {
                                     }
                                 }
 
-                               
+
                             }
 
                             // return $plans;
@@ -4004,7 +4675,7 @@ class UsefulFunctions {
                                     $gsubz_type = $plans[$i]->gsubz_type;
                                 }
 
-                                
+
                                 $new_price = $this->getDataPlanNewPrice($network, $platform, $product_id, $product_amount);
                                 $plan_new_arr[$i] = [
                                     "network" => $network,
@@ -4044,8 +4715,8 @@ class UsefulFunctions {
                             }
                             // return $all_plans_arr;
 
-                          
-                           
+
+
 
                             $data_plans = $all_plans_arr;
                         }
@@ -4385,7 +5056,7 @@ class UsefulFunctions {
             ])->withHeaders($headers)->post($url, $post_data);
         }
         return $response;
-    
+
     }
 
     public function curl($url, $use_post, $post_data = [])
@@ -4420,7 +5091,7 @@ class UsefulFunctions {
 
     public function gSubzVtuCurl($url, $use_post, $post_data = [])
     {
-        
+
         $api = $this->getGsubzApiKey();
         $headers = [
             'Authorization' => 'Bearer ' . $api,
@@ -4466,7 +5137,7 @@ class UsefulFunctions {
         return env("GSUBZ_APIKEY");
     }
 
-   
+
 
     public function getVtuPlatformToUse($type,$network){
         if($type != "" ){
@@ -4490,10 +5161,10 @@ class UsefulFunctions {
         }
         // echo $str;
         DB::table('vtu_platform')->where('name', $str)->update(['platform' => $platform]);
-        
+
     }
 
-    
+
 
     public function addTransactionStatus($form_array)
     {
@@ -4551,9 +5222,9 @@ class UsefulFunctions {
         $time = date("h:i:sa");
 
         WithdrawalHistory::create([
-            'user_id' => $user_id, 
-            'amount' => $amount, 
-            'date' => $date, 
+            'user_id' => $user_id,
+            'amount' => $amount,
+            'date' => $date,
             'time' => $time
         ]);
         return true;
@@ -4607,9 +5278,9 @@ class UsefulFunctions {
     {
 
         AdminFundUsersHistory::create([
-            'user_id' => $user_id, 
-            'amount' => $amount, 
-            'date' => $date, 
+            'user_id' => $user_id,
+            'amount' => $amount,
+            'date' => $date,
             'time' => $time
         ]);
 
@@ -4638,7 +5309,7 @@ class UsefulFunctions {
             foreach ($query as $row) {
                 $currentID = $row->id;
                 $date_created = $row->date_created;
-                
+
                 // echo $currentID;
                 $ret_arr[] = array($currentID, $date_created);
 
@@ -4710,7 +5381,7 @@ class UsefulFunctions {
 
             //Then, Credit airtime to users phone num. Remember to do this. You've not done it yet
 
-            
+
             // $arrrrr = [
             //     'user_id' => $user->id,
             //     'phone_code' => $user->phone_code,
@@ -4719,7 +5390,7 @@ class UsefulFunctions {
             //     // 'amount' => 50,
             // ];
             // $this->sendAirtime($arrrrr);
-            
+
             //Now share 100 naira to admin
 
             $admin = User::find($this->getAdminId());
@@ -4740,7 +5411,7 @@ class UsefulFunctions {
             // $this->addEarningTransferHistory($user_id, $user_final_amt);
             //Share for upteam support i.e 24 users registered after him
 
-            
+
             $upteam_income = ($upteam_perc / 100) * $rem_amt;
 
             $this->creditUserUpteamIncome($user_id, $upteam_income, $upteam_num, $date, $time);
@@ -4760,9 +5431,9 @@ class UsefulFunctions {
             $week_balances->total_placement = 0.00;
             $week_balances->total_upteam = 0.00;
             $week_balances->save();
-            
+
         }else{
-            
+
             $week_balances->week_start = $date_time;
             $week_balances->save();
         }
@@ -4799,7 +5470,7 @@ class UsefulFunctions {
     public function creditUserUpteamIncome($user_id, $upteam_income, $placement_num, $date, $time)
     {
         $real_upteam_income = $upteam_income / $placement_num;
-        
+
         $ids_to_credit = $this->getIdsToCreditUpteam($user_id, $placement_num);
         $ids_to_credit_num = count($ids_to_credit);
         for ($i = 0; $i < count($ids_to_credit); $i++) {
@@ -4820,15 +5491,15 @@ class UsefulFunctions {
             $placement_user->total_upteam_earnings = $placement_user->total_upteam_earnings + $real_upteam_income;
             $placement_user->save();
             $this->creditWeeklyEarning($placements_user_id, $real_upteam_income, 'upteam');
-           
+
         }
     }
 
     public function getIdsToCreditUpteam($user_id, $placement_num)
     {
-        
+
         $arr = [];
-        
+
         $users = User::where('id', '>', $user_id)->where('created',1)->paginate($placement_num,['id']);
         if($users->total() > 0){
             foreach($users as $user){
@@ -4854,7 +5525,7 @@ class UsefulFunctions {
     public function getEasyLoanStepsNum(){
         return MlmCharge::find(16)->amount;
     }
-    
+
     public function getWithdrawalEarningAmt(){
         return MlmCharge::find(15)->amount;
     }
@@ -4866,7 +5537,7 @@ class UsefulFunctions {
     public function getVtuStepsNum(){
         return MlmCharge::find(13)->amount;
     }
-    
+
     public function getDataAmtToShare(){
         return MlmCharge::find(12)->amount;
     }
@@ -4886,7 +5557,7 @@ class UsefulFunctions {
     public function getUpteamNum(){
         return MlmCharge::find(5)->amount;
     }
-    
+
 
     public function getAdminEarningPerc(){
         return MlmCharge::find(7)->perc;
@@ -4959,18 +5630,18 @@ class UsefulFunctions {
     public function registerUserInMlm3($user_id, $sponsor_id, $date, $time, $type, $sign_up_amt)
     {
         if ($this->fixUserInNextAvailableSpaceForMlm(1, $sponsor_id, $user_id, $date, $time, $sign_up_amt)) {
-            
+
             $sponsor_user_id = $this->getMlmDbParamById("user_id", $sponsor_id);
-            
+
 
             $this->creditUserSponsorIncome($user_id, $sponsor_user_id, $sign_up_amt, $sponsor_id, $date, $time);
 
             return true;
-            
+
         }
     }
 
-    
+
 
 
     public function creditWeeklyEarning($user_id, $amount,$type){
@@ -4978,7 +5649,7 @@ class UsefulFunctions {
         if(is_null($mlm_weekly)){
             // $date_time = date("YYYY-MM-DD HH:MM:SS");
             $date_time = date("Y-m-d H:i:s");
-            
+
 
             MlmWeekly::create([
                 'user_id' => $user_id,
@@ -5031,12 +5702,12 @@ class UsefulFunctions {
         // $notif->message .= "</div>";
 
         // $notif->save();
-            
-        
+
+
     }
 
 
-    
+
 
     public function getPositioningOfMlmUserDirect($stage, $sponsor_id)
     {
@@ -5066,7 +5737,7 @@ class UsefulFunctions {
 
     public function checkIfThisUserHasHisNextLevelFull($parent_id)
     {
-        
+
         $query = DB::table('mlm_db')->where("under", $parent_id)->orderBy("id", "ASC")->get("id");
         if ($query->count() >= 2) {
             return true;
@@ -5327,7 +5998,7 @@ class UsefulFunctions {
         return $ret_arr;
     }
 
-    
+
     public function creditUserPlacementIncome($mlm_db_id, $placement_income, $placement_num, $date, $time)
     {
 
@@ -5344,16 +6015,16 @@ class UsefulFunctions {
                 'mlm_db_id' => $placements_mlm_db_id,
                 'type' => 4,
                 'amount' => $placement_income,
-                'date' => $date, 
+                'date' => $date,
                 'time' => $time,
             ]);
 
             $this->creditWeeklyEarning($user_id, $placement_income, 'placement');
             // $notif = new Notif();
-            
+
             // $sponsored_business_partner_id = $creditors_user_id;
-            
-            
+
+
             // $sponsored_business_partner_slug = $sponsored_business_partner_id;
             // $sponsored_business_partner_name = $this->getUserParamById("name", $sponsored_business_partner_id);
             // $sponsored_business_partner_phone_code = $this->getUserParamById("phone_code", $sponsored_business_partner_id);
@@ -5374,7 +6045,7 @@ class UsefulFunctions {
 
             // $notif->save();
 
-           
+
         }
     }
 
@@ -5400,7 +6071,7 @@ class UsefulFunctions {
             $placement_num = $this->getPlacementNum();
             $placement_perc = $this->getPlacementPerc();
 
-            
+
             $placement_income = ($placement_perc / 100) * $sign_up_amt;
 
             $this->creditUserPlacementIncome($mlm_db_id, $placement_income, $placement_num, $date, $time);
@@ -5415,14 +6086,14 @@ class UsefulFunctions {
     public function registerUserInMlm2($user_id, $sponsor_id, $sign_up_amt, $placement_id, $positioning, $date, $time)
     {
         if ($this->fixUserInPositionMlm($sponsor_id, $placement_id, $positioning, $user_id, $date, $time, $sign_up_amt)) {
-            
+
             $sponsor_user_id = $this->getMlmDbParamById("user_id", $sponsor_id);
             $this->creditUserSponsorIncome($user_id, $sponsor_user_id, $sign_up_amt, $sponsor_id, $date, $time);
 
             return true;
-            
+
         }
-    } 
+    }
 
     public function checkIfThisPlacementPositionIsAvailable($placement_id, $positioning)
     {
@@ -5622,35 +6293,35 @@ class UsefulFunctions {
 
         $user = User::find($user_id);
         if (!is_null($user)) {
-            
+
             $total_income = $user->total_income;
             $withdrawn = $user->withdrawn;
             $created = $user->created;
-            
-            
+
+
             $wallet_balance = $total_income - $withdrawn;
             $new_total_income = $total_income + $amount;
             $amount_after = $wallet_balance + $amount;
 
-            
+
             $user->total_income = $new_total_income;
             $user->save();
-            
+
 
             AccountStatement::create([
                 'user_id' => $user_id,
                 'amount' => $amount,
-                'amount_before' => $wallet_balance, 
-                'amount_after' => $amount_after, 
-                'summary' => $summary, 
-                'date' => $date, 
+                'amount_before' => $wallet_balance,
+                'amount_after' => $amount_after,
+                'summary' => $summary,
+                'date' => $date,
                 'time' => $time
             ]);
 
-            
+
             return true;
-                    
-               
+
+
         }
     }
 
@@ -5701,7 +6372,7 @@ class UsefulFunctions {
     public function addMinifyAccountWebhookJsonData($json_post, $date, $time)
     {
         return DB::table('test_table')->insert(array('test' => $json_post, 'date' => $date, 'time' => $time));
-        
+
     }
 
     public function providusVtuCurl($url, $use_post, $post_data = [])
@@ -5709,7 +6380,7 @@ class UsefulFunctions {
         $client_id = env('PROVIDUS_CLIENTID');
         $client_secret = env('PROVIDUS_CLIENTSECRET');
         $auth_signature = hash("sha512", $client_id . ":" . $client_secret);
-        
+
         // $client_id = "RDMtTSMjdF9HMTBCQGw=";
         $headers = [
             'X-Auth-Signature' => $auth_signature,
@@ -5765,7 +6436,7 @@ class UsefulFunctions {
     public function httpCurl($url, $use_post, $post_data = [])
     {
         // return $post_data;
-        
+
         $headers = [
             // 'Authorization' => 'Bearer ' . $bearer_token,
             'Content-Type' => 'application/json',

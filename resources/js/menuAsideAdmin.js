@@ -20,6 +20,7 @@ import {
   mdiInformation,
   mdiBriefcaseEditOutline,
   mdiBriefcaseClockOutline,
+  mdiAccountGroup,
 } from "@mdi/js";
 
 
@@ -87,6 +88,11 @@ export default [
     label: "Manage Vtu",
   },
   {
+    route: "manage_communities",
+    icon: mdiAccountGroup,
+    label: "Manage Communities",
+  },
+  {
     route: "manage_vtu_history",
     icon: mdiBriefcaseClockOutline,
     label: "View Vtu History",
@@ -134,7 +140,7 @@ export default [
         route: "view_members_list",
         label: "Members List",
       },
-      
+
     ],
   },
   {
@@ -161,7 +167,7 @@ export default [
         route: "account_debit_history",
         label: "Admin Acct Debit Hist.",
       },
-      
+
 
     ],
   },

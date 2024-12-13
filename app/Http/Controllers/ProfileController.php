@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Functions\UsefulFunctions;
 use App\Models\Country;
 use App\Models\User;
 use App\Rules\CountryRule;
@@ -10,9 +11,17 @@ use App\Rules\PhoneRegistrRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Intervention\Image\Laravel\Facades\Image;
 
 class ProfileController extends Controller
 {
+    public UsefulFunctions $functions;
+
+    public function __construct()
+    {
+        $this->functions = new UsefulFunctions();
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -50,9 +59,33 @@ class ProfileController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show(Request $request, User $user)
     {
-        //
+        $auth_user = Auth::user();
+
+        $props['auth_user'] = $auth_user;
+        $props['user'] = $user;
+
+
+
+        $posts = $this->functions->getPostsForUserProfilePage($user->id);
+        $props['posts'] = $posts;
+
+        foreach ($posts as $post) {
+            $post->user;
+            $post->comments;
+            $post->likes;
+            foreach ($post->comments as $comment) {
+                $comment->user;
+                $comment->user->state;
+                $comment->likes;
+                $comment->replies = [];
+            }
+        }
+
+        // return $posts;
+
+        return Inertia::render('Profile/Show', $props);
     }
 
     /**
@@ -62,7 +95,7 @@ class ProfileController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function edit(Request $request)
-    {   
+    {
         $props = [];
         $real_countries = [];
         $user = Auth::user();
@@ -150,5 +183,157 @@ class ProfileController extends Controller
     public function destroy($id)
     {
         //
+    }
+
+
+
+    public function updateProfilePicture(Request $request){
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+        $response_arr = ['success' => false];
+
+        $rules = [
+            'image' => 'required|image|mimes:jpeg,png,jpg|max:3048',
+        ];
+
+        $request->validate($rules);
+
+        if($request->hasFile('image')){
+            $image = $request->file('image');
+            $image_name = time().'.'.$image->getClientOriginalExtension();
+            $destinationPath = public_path('/profile_pics');
+            //resize image laravel
+            $resizedImage = Image::read($image->getRealPath());
+            $resizedImage->resize(400, 400, function ($constraint) {
+                $constraint->aspectRatio();
+                $constraint->upsize();
+            });
+
+            $resizedImage->save(public_path('/profile_pics/' .$image_name));
+            $former_photo = $user->profile_picture;
+            if(!is_null($former_photo)){
+                unlink(public_path($former_photo));
+            }
+            $user->profile_picture = '/profile_pics/' . $image_name;
+            $user->save();
+
+            $response_arr['success'] = true;
+            $response_arr['user'] = $user;
+
+        }
+
+        return back()->with('data', $response_arr);
+    }
+
+    public function updateCoverPhoto(Request $request){
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+        $response_arr = ['success' => false];
+
+        $rules = [
+            'image' => 'required|image|mimes:jpeg,png,jpg|max:3048',
+        ];
+
+        $request->validate($rules);
+
+        if($request->hasFile('image')){
+            $image = $request->file('image');
+            $image_name = time().'.'.$image->getClientOriginalExtension();
+            $destinationPath = public_path('/cover_pics');
+            //resize image laravel
+            $resizedImage = Image::read($image->getRealPath());
+            $resizedImage->resize(800, 400, function ($constraint) {
+                $constraint->aspectRatio();
+                $constraint->upsize();
+            });
+
+            $resizedImage->save(public_path('/cover_pics/' .$image_name));
+            $former_photo = $user->cover_photo;
+            if(!is_null($former_photo)){
+                unlink(public_path($former_photo));
+            }
+            $user->cover_photo = '/cover_pics/' . $image_name;
+            $user->save();
+
+            $response_arr['success'] = true;
+            $response_arr['user'] = $user;
+
+        }
+
+        return back()->with('data', $response_arr);
+    }
+
+    public function showFollowing(Request $request, User $user){
+
+        $response = ['success' => false, 'following' => '', 'last_following' => false];
+        $last_id = $request->has('last_id') ? $request->last_id : 0;
+        $following = $user->following(false, $last_id)->get();
+        if($following->count() > 0){
+
+            $last_id = $following[$following->count() - 1]->id;
+            $response['last_following'] = $user->following(false, $last_id)->get()->count() > 0 ? false : true;
+        }
+        $response['following'] = $following;
+        $response['success'] = true;
+
+
+
+
+        return $response;
+
+    }
+
+    public function showFollowers(Request $request, User $user){
+
+        $response = ['success' => false, 'followers' => '', 'last_follower' => false];
+        $last_id = $request->has('last_id') ? $request->last_id : 0;
+        $followers = $user->followers(false, $last_id)->get();
+        if($followers->count() > 0){
+
+            $last_id = $followers[$followers->count() - 1]->id;
+            $response['last_follower'] = $user->followers(false, $last_id)->get()->count() > 0 ? false : true;
+        }
+        $response['followers'] = $followers;
+        $response['success'] = true;
+
+
+
+
+        return $response;
+
+    }
+
+    public function loadMorePosts(Request $request){
+        $post_data = (Object) $request->input();
+        // return $post_data;
+        $user = Auth::user();
+        $user = User::find($user->id);
+
+
+        if($request->has('last_id')){
+            $response = ['posts' => [], 'last_post' => false];
+            $last_id = $request->last_id;
+            $posts = $this->functions->getPostsForUserProfilePage($user->id, $last_id);
+
+            if($posts->count() > 0){
+                foreach ($posts as $post) {
+                    $post->user;
+                    $post->comments;
+                    $post->likes;
+                    foreach ($post->comments as $comment) {
+                        $comment->user;
+                        $comment->user->state;
+                        $comment->likes;
+                        $comment->replies = [];
+                    }
+                }
+            }
+            $response['posts'] = $posts->count() > 0 ? $posts : [];
+            $response['last_post'] = $posts->count() > 0 ? false : true;
+
+            return $response;
+        }
     }
 }

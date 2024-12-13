@@ -85,6 +85,34 @@
   /* @apply  */
 }
 
+.community-tabs-selected {
+    @apply border-4 border-primary-200;
+}
+
+.community-tabs {
+    @apply inline-block mx-4 my-3 p-2 px-4  rounded-xl cursor-pointer;
+}
+
+.dropdown-menu {
+    @apply dark:bg-slate-500 bg-white shadow-sm rounded-lg py-2 px-2;
+}
+
+.dropdown-item {
+    @apply my-1 mx-1 text-sm;
+}
+
+.form-button{
+    @apply block w-full text-lg font-semibold text-center py-2 px-4 rounded bg-primary-100 text-white hover:bg-transparent hover:text-primary-100 transition-all ease-in-out duration-300 hover:border hover:border-primary-100;
+}
+
+.divider {
+    @apply border-b border-secondary-300 dark:border-slate-500 cursor-pointer;
+}
+
+.toast {
+    @apply fixed w-[230px]  rounded-full bg-facebook-blue px-3 py-2 text-white bottom-0 left-0 right-0 my-5 mx-auto bg-opacity-95 transition ease-in-out duration-700 z-[2000];
+}
+
 .nav-icons {
     @apply sm:mx-2 mx-3 col-span-2 sm:text-xs text-lg text-black bg-secondary-100 dark:text-secondary-100 dark:bg-slate-800 rounded-full p-[6px] shadow-sm cursor-pointer;
 }
@@ -328,7 +356,7 @@ button,
 }
 
 .login-input-error {
-  @apply border-red-400 font-semibold border px-4 py-3 text-slate-700 bg-gray-200 rounded-lg text-xs w-full ease-linear transition-all duration-150 placeholder-slate-500 my-1;
+  @apply border-red-400 font-semibold border text-slate-700 bg-gray-200 rounded-lg text-xs w-full ease-linear transition-all duration-150 placeholder-slate-500 my-1;
 }
 
 .login-button {
