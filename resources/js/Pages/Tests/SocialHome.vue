@@ -152,10 +152,11 @@ const checkPostLength = () => {
   console.log(rem_chars.value)
 }
 
-const toggleCommentLike = (id) => {
+const toggleCommentLike = (post_index, id) => {
   let index = id - 1;
-  console.log(posts.value.comments[index].liked);
-  posts.value.comments[index].liked = !posts.value.comments[index].liked
+  console.log(posts.value[post_index].comments[index].liked);
+  let post = posts.value[post_index];
+  post.comments[index].liked = !post.comments[index].liked;
 }
 
 
@@ -411,7 +412,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                       <div @click="makeCommentAction(index)" :class="make_comment_open ? 'text-primary-100' : ''" class="inline-block mr-8 cursor-pointer hover:text-primary-100">
                         <font-awesome-icon icon="fa-solid fa-comments" />
                         <span class="inline-block mx-1">Comment</span>
-                        <span class="text-xs border-[1px] p-[1px] px-1 border-secondary-300 dark:border-slate-500 rounded-md">{{ posts.comments.length }}</span>
+                        <span class="text-xs border-[1px] p-[1px] px-1 border-secondary-300 dark:border-slate-500 rounded-md">{{ post.comments.length }}</span>
                       </div>
 
                       <div class="inline-block  cursor-pointer hover:text-primary-100">
@@ -424,7 +425,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
 
                   <div class="px-3 py-4 ">
                     <div class="">
-                      <span @click="openBiggerPost(index, 0)" class="text-primary-100 hover:underline text-sm cursor-pointer inline-block my-2"><font-awesome-icon icon="fa-regular fa-eye" /> Show all {{ posts.comments.length }} comments</span>
+                      <span @click="openBiggerPost(index, 0)" class="text-primary-100 hover:underline text-sm cursor-pointer inline-block my-2"><font-awesome-icon icon="fa-regular fa-eye" /> Show all {{ post.comments.length }} comments</span>
 
                       <div v-if="make_comment_open" class="my-4">
                         <form class="grid grid-cols-12 gap-1">
@@ -445,7 +446,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                       </div>
 
                       <div class="">
-                        <div class="my-1" v-for="(comment, index) in posts.comments.slice(Math.max(posts.comments.length - 2, 0))" :key="index">
+                        <div class="my-1" v-for="(comment, comment_index) in post.comments.slice(Math.max(post.comments.length - 2, 0))" :key="comment_index">
 
                           <div class="grid grid-cols-12 gap-2">
                             <p class="text-sm col-span-11">
@@ -459,8 +460,8 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                             </p>
 
                             <span class="float-right col-span-1">
-                              <font-awesome-icon @click="toggleCommentLike(comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
-                              <font-awesome-icon @click="toggleCommentLike(comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
+                              <font-awesome-icon @click="toggleCommentLike(index, comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
+                              <font-awesome-icon @click="toggleCommentLike(index, comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
                             </span>
 
                           </div>
@@ -553,7 +554,7 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                     </div>
                   </div>
 
-                  <div v-for="(comment, index) in posts.comments" :key="index" class="grid grid-cols-12 gap-3 mt-4">
+                  <div v-for="(comment, comment_index) in posts[open_post_index].comments" :key="comment_index" class="grid grid-cols-12 gap-3 mt-4">
                     <!-- <template > -->
                       <div class="col-span-1">
                         <img class="w-full rounded-full inline-block " :src="`/images/${comment.photo}`" alt="">
@@ -564,8 +565,8 @@ const toggleEnterMoreDetailsPostMedia = (index) => {
                       </div>
 
                       <div class="col-span-1">
-                        <font-awesome-icon @click="toggleCommentLike(comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
-                        <font-awesome-icon @click="toggleCommentLike(comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
+                        <font-awesome-icon @click="toggleCommentLike(open_post_index, comment.id)" v-if="!comment.liked" class="text-xs cursor-pointer" icon="fa-regular fa-heart" />
+                        <font-awesome-icon @click="toggleCommentLike(open_post_index, comment.id)" v-else class="text-primary-100 text-xs cursor-pointer" icon="fa-solid fa-heart" />
                       </div>
                     <!-- </template> -->
                   </div>
