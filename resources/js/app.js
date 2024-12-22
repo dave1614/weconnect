@@ -22,7 +22,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 /* import specific icons */
-import { faUserSecret, faFloppyDisk, faDollarSign, faNairaSign, faMoneyBill1Wave, faEnvelope, faPhone, faArrowLeft, faUser, faLock, faHospital, faLocationPin, faBars, faBriefcase, faHouse, faUserTie, faArrowRight, faPlus, faUsers , faFileExport, faArrowDown, faCheck, faPenToSquare, faCheckToSlot, faPrint, faEdit, faLocationDot, faEnvelopesBulk, faMapLocationDot, faMagnifyingGlass, faUserPen, faGear, faCircleHalfStroke, faArrowRightFromBracket, faPaperclip, faEllipsis, faPlay, faHeart, faComments, faShare, faAngleLeft, faAngleRight, faXmark, faPen, faBookmark as faSolidBookmark, faFileCirclePlus, faTrashCan, faCirclePlus, faCaretDown, faHashtag, faLocationCrosshairs, faGlobe, faClockRotateLeft, faImages, faBookmark } from '@fortawesome/free-solid-svg-icons'
+import { faUserSecret, faFloppyDisk, faDollarSign, faNairaSign, faMoneyBill1Wave, faEnvelope, faPhone, faArrowLeft, faUser, faLock, faHospital, faLocationPin, faBars, faBriefcase, faHouse, faUserTie, faArrowRight, faPlus, faUsers , faFileExport, faArrowDown, faCheck, faPenToSquare, faCheckToSlot, faPrint, faEdit, faLocationDot, faEnvelopesBulk, faMapLocationDot, faMagnifyingGlass, faUserPen, faGear, faCircleHalfStroke, faArrowRightFromBracket, faPaperclip, faEllipsis, faPlay, faHeart, faComments, faShare, faAngleLeft, faAngleRight, faXmark, faPen, faBookmark as faSolidBookmark, faFileCirclePlus, faTrashCan, faCirclePlus, faCaretDown, faHashtag, faLocationCrosshairs, faGlobe, faClockRotateLeft, faImages, faBookmark, faMobileScreen } from '@fortawesome/free-solid-svg-icons'
 
 
 import { faBell, faSquarePlus, faCompass, faHeart as faRegularHeart, faEye, faComment, faShareFromSquare, faFaceSmile, faCircleXmark, faCircleCheck, faBookmark as faRegularBookmark, faPenToSquare as faPenToSquareRegular} from '@fortawesome/free-regular-svg-icons'
@@ -30,12 +30,12 @@ import { faBell, faSquarePlus, faCompass, faHeart as faRegularHeart, faEye, faCo
 import { faFacebookF, faTwitter, faYoutube, faLinkedinIn, faFacebook, faSquareXTwitter, faInstagram } from '@fortawesome/free-brands-svg-icons'
 
 /* add icons to the library */
-library.add(faUserSecret, faFloppyDisk, faDollarSign, faNairaSign, faMoneyBill1Wave, faFacebookF, faTwitter, faYoutube, faLinkedinIn, faEnvelope, faPhone, faArrowLeft, faUser, faLock, faHospital, faLocationPin, faBars, faBriefcase, faHouse, faUserTie, faArrowRight, faPlus, faUsers, faBell, faFileExport, faArrowDown, faCheck, faPenToSquare, faCheckToSlot, faPrint, faEdit, faLocationDot, faFacebook, faSquareXTwitter, faInstagram, faEnvelopesBulk, faCompass, faMapLocationDot, faMagnifyingGlass, faUserPen, faSquarePlus, faGear, faCircleHalfStroke, faArrowRightFromBracket, faPaperclip, faEllipsis, faPlay, faHeart, faRegularHeart, faComments, faShare, faEye, faAngleLeft, faAngleRight, faXmark, faComment, faShareFromSquare, faFaceSmile, faCircleXmark, faPen, faCircleCheck, faSolidBookmark, faRegularBookmark, faPenToSquareRegular, faFileCirclePlus, faTrashCan, faCirclePlus, faCaretDown, faHashtag, faLocationCrosshairs, faGlobe, faClockRotateLeft, faImages, faBookmark)
+library.add(faUserSecret, faFloppyDisk, faDollarSign, faNairaSign, faMoneyBill1Wave, faFacebookF, faTwitter, faYoutube, faLinkedinIn, faEnvelope, faPhone, faArrowLeft, faUser, faLock, faHospital, faLocationPin, faBars, faBriefcase, faHouse, faUserTie, faArrowRight, faPlus, faUsers, faBell, faFileExport, faArrowDown, faCheck, faPenToSquare, faCheckToSlot, faPrint, faEdit, faLocationDot, faFacebook, faSquareXTwitter, faInstagram, faEnvelopesBulk, faCompass, faMapLocationDot, faMagnifyingGlass, faUserPen, faSquarePlus, faGear, faCircleHalfStroke, faArrowRightFromBracket, faPaperclip, faEllipsis, faPlay, faHeart, faRegularHeart, faComments, faShare, faEye, faAngleLeft, faAngleRight, faXmark, faComment, faShareFromSquare, faFaceSmile, faCircleXmark, faPen, faCircleCheck, faSolidBookmark, faRegularBookmark, faPenToSquareRegular, faFileCirclePlus, faTrashCan, faCirclePlus, faCaretDown, faHashtag, faLocationCrosshairs, faGlobe, faClockRotateLeft, faImages, faBookmark, faMobileScreen)
 
 
 window.Swal = swal;
 
-const appName = window.document.getElementsByTagName('title')[0]?.innerText || 'Cosrosmos'
+const appName = window.document.getElementsByTagName('title')[0]?.innerText || 'Weconnect'
 
 const pinia = createPinia()
 

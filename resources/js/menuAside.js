@@ -7,7 +7,7 @@ import {
   mdiSquareEditOutline,
   mdiTable,
   mdiViewList,
-  
+
   mdiResponsive,
   mdiPalette,
   mdiHospitalBuilding,
@@ -25,6 +25,7 @@ import {
   mdiLightningBoltOutline,
   mdiRouterWireless,
   mdiSchoolOutline,
+  mdiAccountGroup
 } from "@mdi/js";
 
 
@@ -34,21 +35,27 @@ export default [
     icon: mdiViewDashboard,
     label: "Dashboard",
   },
+
   {
-    label: "Profile",
-    icon: mdiAccountCircle,
-    menu: [
-      {
-        route: "edit_profile",
-        label: "Edit Profile",
-      },
-      {
-        route: "change_password",
-        label: "Change Password",
-      },
-    ],
+    route: "home_page",
+    icon: mdiAccountGroup ,
+    label: "Social Section",
   },
-  
+//   {
+//     label: "Profile",
+//     icon: mdiAccountCircle,
+//     menu: [
+//       {
+//         route: "edit_profile",
+//         label: "Edit Profile",
+//       },
+//       {
+//         route: "change_password",
+//         label: "Change Password",
+//       },
+//     ],
+//   },
+
   // {
   //   label: "Genealogy",
   //   icon: mdiSquareCircle,
@@ -147,7 +154,7 @@ export default [
   //       route: "educational_vouchers",
   //       label: "Educational Vouchers",
   //     },
-      
+
   //   ],
   // },
   // {

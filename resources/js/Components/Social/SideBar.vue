@@ -92,18 +92,19 @@ const openSearch = () => {
           </li>
 
           <li  class="list">
-            <Link href="" >
-              <font-awesome-icon icon="fa-solid fa-briefcase" />
+            <Link :href="route('dashboard')" >
+              <!-- <font-awesome-icon icon="fa-solid fa-briefcase" /> -->
+              <font-awesome-icon icon="fa-solid fa-mobile-screen" />
               <span :class="sideBarListClasses" class="mx-2">VTU</span>
             </Link>
           </li>
 
-          <li  class="list">
+          <!-- <li  class="list">
             <Link href="" >
               <font-awesome-icon icon="fa-solid fa-briefcase" />
               <span :class="sideBarListClasses" class="mx-2">Jobs</span>
             </Link>
-          </li>
+          </li> -->
 
 
 

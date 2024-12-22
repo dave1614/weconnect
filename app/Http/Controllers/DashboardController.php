@@ -68,7 +68,7 @@ class DashboardController extends Controller
         $props['left_team_total'] = $left_team_total;
         $props['right_team_total'] = $right_team_total;
         $props['downline_arr_num'] = $left_team_total + $right_team_total;
-        
+
         // $props['total_amount_wthdrawn'] = $this->functions->getTotalAmountWithdrawnByUser($user->id);
 
         $top_ten_earners = User::where('id','!=',10)->latest("total_earnings")->paginate(10);
@@ -81,8 +81,8 @@ class DashboardController extends Controller
             $props['total_amount_online_payment'] = (string) number_format($this->functions->getTotalAmountForOnlinePaymentMadeToday($user_id), 2);
             $props['total_amount_withdrawn_today'] = (string) number_format($this->functions->getTotalAmountWithdrawnToday($user_id), 2);
 
-            
-            
+
+
             $props['year'] = date("Y");
 
             $first_twenty_users = $this->functions->getLastTwentyUsersRegisteredUsers();
@@ -109,9 +109,11 @@ class DashboardController extends Controller
             $props['first_twenty_users'] = $new_twenty_users_arr;
             return Inertia::render('Admin/AdminHomeView', $props);
         }else{
+
+
             return Inertia::render('HomeView', $props);
         }
-        
+
 
     }
 

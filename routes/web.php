@@ -87,6 +87,8 @@ Route::post('/submit_front_page_message', [MainPageController::class, 'submitFro
 Route::post('/news_letter_list', [NewsLetterController::class, 'store'])->name('news_letter_list.store');
 
 
+
+
 Route::scopeBindings()->name('location.')->group(function () {
     Route::post('/location/get_new_lgas_and_wards/{state}', [LocationController::class, 'getNewLgasAndWards'])->name('get_new_lgas_and_wards');
 
@@ -95,6 +97,8 @@ Route::scopeBindings()->name('location.')->group(function () {
 
 
 });
+
+
 
 
 Route::middleware(['providus', 'verified', 'auth'])->group(function () {

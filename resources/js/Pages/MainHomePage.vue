@@ -2,7 +2,7 @@
   .main-background{
     background: linear-gradient(to right bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('/public/img/pexels-hillaryfox-1595390.jpg') no-repeat center center fixed;
 
- 
+
     -webkit-background-size: cover;
     -moz-background-size: cover;
     background-size: cover;
@@ -101,7 +101,7 @@ const submit = () => {
             title: 'Success',
             html: `Your message has been sent to the admin sucessfully`,
             icon: 'success',
-            
+
             allowEscapeKey: false,
             allowOutsideClick: false,
           }).then((result) => {
@@ -116,7 +116,7 @@ const submit = () => {
             icon: 'error',
           });
         }
-          
+
       }, onError: (errors) => {
         Swal.close();
         var size = Object.keys(errors).length;
@@ -126,7 +126,7 @@ const submit = () => {
           text: `There are ${size} form errors. Please fix them`,
         })
       },
-      
+
     });
   }
 }
@@ -155,7 +155,7 @@ const addToNewsLetter = () => {
             icon: 'error',
           });
         }
-          
+
       }, onError: (errors) => {
         Swal.close();
         var size = Object.keys(errors).length;
@@ -165,7 +165,7 @@ const addToNewsLetter = () => {
           text: `There are ${size} form errors. Please fix them`,
         })
       },
-      
+
     });
   }
 };
@@ -182,7 +182,7 @@ const addToNewsLetter = () => {
               <h1 class="font-pacifico text-[28px] font-bold text-slate-700"><span class="text-primary inline-block mr-[1px]">Cos</span>Rosmos</h1>
             </Link>
           </div>
-          
+
 
           <div class="block lg:hidden pr-4">
             <button @click="mainStore.toggleMainNavMenu()" id="nav-toggle"
@@ -212,7 +212,7 @@ const addToNewsLetter = () => {
 
 
       <div class="absolute bottom-[33%] pl-[36px] pr-[15px] text-white">
-        <h3 class="text-5xl font-bold mb-4">CosRosmos Technologies</h3>
+        <h3 class="text-5xl font-bold mb-4">Weconnect Technologies</h3>
 
         <span class="text-sm italic font-semibold block  mb-[40px]">Lorem ipsum dolor sit amet consectetur adipisicing...</span>
 
@@ -232,7 +232,7 @@ const addToNewsLetter = () => {
           <p class="text-lg text-slate-600 mt-[30px]">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Itaque iusto possimus corrupti vel, adipisci animi. Cumque quisquam, odit sint tempora neque vel laudantium nam. Modi, possimus? Saepe repellat corrupti consequuntur. Lorem ipsum dolor sit amet, consectetur adipisicing elit. Itaque iusto possimus corrupti vel, adipisci animi? Cumque quisquam, odit sint tempora neque vel laudantium nam. Modi, possimus? Saepe repellat corrupti consequuntur?</p>
         </div>
       </div>
-      
+
     </section>
 
     <div class="bg-gradient-to-r from-pink-100 to-orange-100  mt-[30px] py-6">
@@ -323,7 +323,7 @@ const addToNewsLetter = () => {
             </div>
           </div>
         </div>
-        
+
       </section>
 
       <section id="contact-us" class="pt-[30px] ">
@@ -380,7 +380,7 @@ const addToNewsLetter = () => {
                     <span class="login-form-error">{{ form.errors.message }}</span>
 
                   </div>
-                  
+
 
                   <button name="login-btn" :class="form.processing ? 'opacity-80 cursor-not-allowed' : ''"
                     @mouseleave="login_btn_hovered = false" @mouseover="login_btn_hovered = true" type="submit"
@@ -390,7 +390,7 @@ const addToNewsLetter = () => {
                       :src="login_btn_hovered ? FormLoaderDark : FormLoaderLight" alt="">
                   </button>
 
-                  
+
                 </form>
               </div>
             </div>
@@ -398,7 +398,7 @@ const addToNewsLetter = () => {
         </div>
       </section>
 
-      
+
 
     </div>
 
@@ -452,7 +452,7 @@ const addToNewsLetter = () => {
 
                 <div class="w-full grid grid-cols-12 gap-2 mt-4">
                   <input type="email" v-model="newsletter_form.email" placeholder="Enter your email address" class="text-xs rounded-full col-span-9 py-3 text-gray-700">
-                  
+
                   <button :class="newsletter_form.processing ? 'opacity-30 cursor-not-allowed' : ''" class="col-span-3 rounded-full bg-gradient-to-r from-pink-400 to-primary px-3 py-2 text-sm">Subscribe</button>
                 </div>
                 <span class="text-xs font-bold italic text-red-600">{{ newsletter_form.errors.email }}</span>

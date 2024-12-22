@@ -1,5 +1,5 @@
 <script setup>
-import { useForm, usePage, Head } from '@inertiajs/vue3';
+import { useForm, usePage, Head, router } from '@inertiajs/vue3';
 import { computed, ref, onMounted } from "vue";
 import { useMainStore } from "@/Stores/main";
 import {
@@ -20,6 +20,13 @@ import {
   mdiWhatsapp,
   mdiAccount,
   mdiCashPlus,
+  mdiCellphoneWireless,
+  mdiCellphoneDock,
+  mdiTelevisionClassic,
+  mdiLightningBoltOutline,
+  mdiRouterWireless,
+  mdiSchoolOutline,
+  mdiWalletBifold
 } from "@mdi/js";
 import * as chartConfig from "@/Components/Charts/chart.config.js";
 import LineChart from "@/Components/Charts/LineChart.vue";
@@ -41,6 +48,8 @@ import BaseButtons from '@/Components/BaseButtons.vue';
 import FormField from '@/Components/FormField.vue';
 import FormControl from '@/Components/FormControl.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
+import BaseIcon from '@/Components/BaseIcon.vue';
+
 
 
 const props = defineProps({
@@ -74,7 +83,10 @@ const props = defineProps({
   total_spent_on_vtu_today: {
 
   },
-  total_credited_today: {}
+  total_credited_today: {},
+  vtu_services: {
+    type: Array
+  }
 
 
 });
@@ -105,6 +117,39 @@ const user = page.props.user;
 const monnify_details = page.props.monnify_details;
 console.log(monnify_details)
 
+
+const vtu_services = ref([
+    {
+        id: 'Airtime Topup',
+        route:  'airtime_topup',
+        icon:  mdiCellphoneWireless,
+    },
+    {
+        id: 'Internet Data',
+        route:  'internet_data',
+        icon:  mdiCellphoneDock,
+    },
+    {
+        id: 'Cable TV',
+        route:  'cable_tv',
+        icon:  mdiTelevisionClassic,
+    },
+    {
+        id: 'Electricity',
+        route:  'electricity_topup',
+        icon:  mdiLightningBoltOutline,
+    },
+    {
+        id: 'Router Recharge',
+        route:  'router_recharge',
+        icon:  mdiRouterWireless,
+    },
+    {
+        id: 'Educational Vouchers',
+        route:  'educational_vouchers',
+        icon:  mdiSchoolOutline,
+    }
+]);
 
 // const total_amount_wthdrawn = page.props.user;
 
@@ -138,15 +183,20 @@ if (account_created) {
 
 
 }
+
+const openPage = (url) => {
+  router.visit(route(url))
+  // console.log(route(url))
+}
 </script>
 
 
 <template>
   <LayoutAuthenticated>
 
-    <Head title="Dashboard" />
+    <Head title="Vtu Dashboard" />
     <SectionMain>
-      <SectionTitleLineWithButton :icon="mdiChartTimelineVariant" title="Overview" main>
+      <SectionTitleLineWithButton :icon="mdiChartTimelineVariant" title="Vtu Dashboard" main>
         <!-- <BaseButton
           href="https://github.com/justboil/admin-one-vue-tailwind"
           target="_blank"
@@ -157,12 +207,12 @@ if (account_created) {
           small
         /> -->
       </SectionTitleLineWithButton>
-      <div class="text-center mt-[80px] mb-6">
+      <!-- <div class="text-center mt-[80px] mb-6">
         <a class="text-white text-lg font-semibold bg-emerald-500 hover:bg-emerald-600 rounded-[30px] px-8 py-2"
           target="_blank" href="https://chat.whatsapp.com/FVMmkYNHEva0zP5xmWOTxC"><i
             class="fab fa-whatsapp pr-2 text-xl"></i>
           Join Our Whatsapp Group</a>
-      </div>
+      </div> -->
       <CardBox class="mb-5" v-if="user.providus_account_number != null && user.providus_account_name != null">
         <div class="mx-3 my-5 text-sm">
           <h3 class="mb-3 text-2xl font-bold">Personalized Account Funding</h3>
@@ -171,15 +221,15 @@ if (account_created) {
             <span>Funding less than ₦9000 is ₦25, while above ₦9000 cost ₦75 only.</span>
           </p>
 
-          <!-- <h4 class="text-lg ">Bank Name</h4>
+          <h4 class="text-lg ">Bank Name</h4>
           <p class="text-primary">Providus Bank</p>
 
           <h4 class="text-lg mt-2">Account Name</h4>
           <p class="text-primary" v-html="user.providus_account_name"></p>
-          
-      
+
+
           <h4 class="text-lg mt-2">Account Number</h4>
-          <p class="text-primary">{{user.providus_account_number}}</p> -->
+          <p class="text-primary">{{user.providus_account_number}}</p>
 
           <table>
             <thead>
@@ -266,7 +316,61 @@ if (account_created) {
 
       </div>
 
-      <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-1">
+      <div class="my-6" v-if="vtu_services.length > 0">
+
+        <SectionTitleLineWithButton :icon="mdiChartTimelineVariant" title="Vtu Services" >
+
+        </SectionTitleLineWithButton>
+
+
+
+        <div class="sm:grid sm:grid-cols-12 sm:gap-6">
+          <CardBox @click="openPage(service.route)" v-for="(service, index) in  vtu_services" :key="index" class="cursor-pointer sm:col-span-4 relative my-5 py-4 mx-4 shadow-xl hover:shadow-2xl transition-all ease-in-out duration-500 hover:my-5">
+            <div class="flex justify-center items-center">
+              <BaseIcon  :path="service.icon" class="flex-shrink-0" size="50" w="50" h="50" />
+            </div>
+
+            <p class="text-center text-xl font-bold block">{{ service.id }}</p>
+          </CardBox>
+        </div>
+      </div>
+
+      <SectionTitleLineWithButton :icon="mdiWalletBifold" title="E-wallet" >
+
+      </SectionTitleLineWithButton>
+
+
+      <div  class="mt-[30px]">
+        <CardBox class="mb-6">
+
+          <ul class="divide-y-2 divide-gray-400 mt-[10px]">
+
+            <li @click="openPage('wallet.overview')" class="listview-list">
+              <span class="font-semibold ">1. Overview </span>
+            </li>
+
+            <li @click="openPage('wallet.credit_history')" class="listview-list">
+              <span class="font-semibold ">2. Wallet Credit History </span>
+            </li>
+
+            <li @click="openPage('wallet.transfer')" class="listview-list">
+              <span class="font-semibold ">3. Funds Transfer </span>
+            </li>
+
+            <li @click="openPage('wallet.transfer_history')" class="listview-list">
+              <span class="font-semibold ">4. Transfer History </span>
+            </li>
+
+            <li @click="openPage('wallet.statement')" class="listview-list">
+              <span class="font-semibold ">5. E-wallet Statement</span>
+            </li>
+
+
+          </ul>
+        </CardBox>
+      </div>
+
+      <!-- <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-1">
         <CardBox class="">
           <UserAvatarCurrentUser class="h-24 w-24 mx-auto" />
 
@@ -280,7 +384,7 @@ if (account_created) {
           </div>
 
         </CardBox>
-      </div>
+      </div> -->
 
 
       <!-- <SectionBannerStarOnGitHub class="mt-6 mb-6" /> -->
@@ -309,7 +413,7 @@ if (account_created) {
         <table>
           <thead>
             <tr>
-              
+
               <th>#</th> -->
       <!-- <th /> -->
       <!-- <th>Full Name</th>
@@ -327,9 +431,9 @@ if (account_created) {
                 {{ user.name }}
               </td>
               <td data-label="Amount" v-html="mainStore.addCommas(user.total_earnings)">
-                
+
               </td>
-              
+
             </tr>
           </tbody>
         </table> -->
